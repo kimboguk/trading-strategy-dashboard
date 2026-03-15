@@ -19,7 +19,7 @@ import {
   getBacktestEquity,
   getBacktestYearly,
 } from "@/lib/api";
-import { saveToHistory, generateId, type SavedBacktest } from "@/lib/history";
+import { saveToHistory, generateId, formatLabel, type SavedBacktest } from "@/lib/history";
 import { ParameterForm } from "@/components/backtest/ParameterForm";
 import { StatsTable } from "@/components/backtest/StatsTable";
 import { TradesTable } from "@/components/backtest/TradesTable";
@@ -203,7 +203,7 @@ export default function BacktestPage() {
             {/* Stats + Yearly side by side */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <StatsTable stats={stats} />
-              <YearlyBreakdown data={yearlyData} />
+              <YearlyBreakdown data={yearlyData} label={currentParams ? formatLabel(currentParams) : undefined} />
             </div>
 
             {/* Trades */}
