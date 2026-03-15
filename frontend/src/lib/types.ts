@@ -23,6 +23,7 @@ export interface BacktestRequest {
   tp_pips?: number;
   sl_pips?: number;
   filter_tfs?: string[];
+  alignment_mas?: number[];
 }
 
 export interface BacktestStats {
@@ -103,6 +104,7 @@ export interface TaskStatus {
   task_id: string;
   status: "pending" | "running" | "complete" | "error";
   progress: number;
+  message?: string;
   error?: string;
 }
 

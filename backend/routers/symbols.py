@@ -34,7 +34,7 @@ def symbol_date_range(name: str):
 
 @router.get("/timeframes")
 def list_timeframes():
-    return ["D1", "H4", "H1", "M30", "M15"]
+    return ["D1", "H4", "H1", "M30", "M15", "M5", "M1"]
 
 
 @router.get("/strategies")

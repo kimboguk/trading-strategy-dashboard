@@ -38,6 +38,7 @@ const EquityCurve = dynamic(
 export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressMsg, setProgressMsg] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
 
@@ -52,11 +53,12 @@ export default function BacktestPage() {
     setLoading(true);
     setError(null);
     setProgress(0);
+    setProgressMsg("");
     setCurrentParams(params);
 
     try {
       const { task_id } = await runBacktest(params);
-      await pollUntilComplete(task_id, setProgress);
+      await pollUntilComplete(task_id, setProgress, setProgressMsg);
 
       const [s, t, c, e, y] = await Promise.all([
         getBacktestStats(task_id),
@@ -118,12 +120,12 @@ export default function BacktestPage() {
             <div className="mt-3">
               <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-tertiary)" }}>
                 <div
-                  className="h-full rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%`, background: "var(--accent)" }}
+                  className="h-full rounded-full transition-all duration-300 animate-pulse"
+                  style={{ width: "100%", background: "var(--accent)", opacity: 0.6 }}
                 />
               </div>
               <p className="text-xs mt-1 text-center" style={{ color: "var(--text-secondary)" }}>
-                {progress}%
+                {progressMsg || "Starting..."}
               </p>
             </div>
           )}

@@ -25,24 +25,45 @@ export function loadHistory(): SavedBacktest[] {
   }
 }
 
+const MAX_STORAGE_BYTES = 4 * 1024 * 1024; // 4MB safety margin under 5MB limit
+
 export function saveToHistory(entry: SavedBacktest): void {
   const history = loadHistory();
-  // Prepend new entry, limit size
   history.unshift(entry);
   if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+
+  // Try saving, progressively strip large data if quota exceeded
+  if (_trySave(history)) return;
+
+  // Step 1: strip chart/equity/trades from older entries
+  for (let i = history.length - 1; i >= 1; i--) {
+    delete history[i].chartData;
+    delete history[i].equityData;
+    delete history[i].trades;
+  }
+  if (_trySave(history)) return;
+
+  // Step 2: strip trades from current entry (largest after chart)
+  delete history[0].trades;
+  if (_trySave(history)) return;
+
+  // Step 3: strip chart from current entry
+  delete history[0].chartData;
+  if (_trySave(history)) return;
+
+  // Step 4: strip equity from current entry
+  delete history[0].equityData;
+  _trySave(history);
+}
+
+function _trySave(history: SavedBacktest[]): boolean {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-  } catch (e) {
-    // localStorage quota exceeded — drop chart/equity/trades from oldest entries
-    for (let i = history.length - 1; i >= 1; i--) {
-      delete history[i].chartData;
-      delete history[i].equityData;
-      delete history[i].trades;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-        return;
-      } catch {}
-    }
+    const json = JSON.stringify(history);
+    if (json.length > MAX_STORAGE_BYTES) return false;
+    localStorage.setItem(STORAGE_KEY, json);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -62,6 +83,9 @@ export function generateId(): string {
 export function formatLabel(params: BacktestRequest): string {
   const parts = [params.symbol, params.timeframe, params.ma_type.toUpperCase()];
   if (params.filter_tfs?.length) parts.push(`+${params.filter_tfs.join("+")}`);
+  if (params.alignment_mas && params.alignment_mas.length >= 2) {
+    parts.push(params.alignment_mas.sort((a, b) => a - b).join("|"));
+  }
   if (params.tp_pips) parts.push(`TP${params.tp_pips}`);
   if (params.sl_pips) parts.push(`SL${params.sl_pips}`);
   return parts.join(" ");

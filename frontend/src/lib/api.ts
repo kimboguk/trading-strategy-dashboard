@@ -78,6 +78,7 @@ export async function getBacktestYearly(taskId: string): Promise<YearlyRow[]> {
 export async function pollUntilComplete(
   taskId: string,
   onProgress?: (p: number) => void,
+  onMessage?: (msg: string) => void,
   intervalMs = 2000,
 ): Promise<void> {
   while (true) {
@@ -85,6 +86,7 @@ export async function pollUntilComplete(
     if (status.status === "complete") return;
     if (status.status === "error") throw new Error(status.error || "Backtest failed");
     onProgress?.(status.progress);
+    if (status.message) onMessage?.(status.message);
     await new Promise((r) => setTimeout(r, intervalMs));
   }
 }

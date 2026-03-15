@@ -11,6 +11,7 @@ class Task:
     task_id: str
     status: str = "pending"     # pending, running, complete, error
     progress: float = 0.0       # 0-100
+    message: Optional[str] = None  # e.g. "Processing 2015..."
     result: Optional[Any] = None
     error: Optional[str] = None
 

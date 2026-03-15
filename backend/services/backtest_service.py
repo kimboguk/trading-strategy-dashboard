@@ -8,9 +8,15 @@ from services.task_manager import update_task
 
 def run_backtest_task(task_id: str, params: dict) -> dict:
     """Run backtest synchronously (called from thread pool)."""
-    update_task(task_id, status="running", progress=10)
+    update_task(task_id, status="running", message="Starting...")
 
     run_backtest = get_backtest_runner()
+
+    def _on_progress(msg):
+        if isinstance(msg, int):
+            update_task(task_id, message=f"Processing {msg}...")
+        else:
+            update_task(task_id, message=str(msg))
 
     result = run_backtest(
         symbol=params["symbol"],
@@ -21,16 +27,28 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
         tp_pips=params.get("tp_pips"),
         sl_pips=params.get("sl_pips"),
         filter_tfs=params.get("filter_tfs"),
+        alignment_mas=params.get("alignment_mas"),
         verbose=False,
+        progress_callback=_on_progress,
     )
 
-    update_task(task_id, progress=80)
+    update_task(task_id, message="Building charts...")
+
+    # Downsample equity curve for large datasets
+    equity_df = result["equity"]
+    if equity_df is not None and len(equity_df) > MAX_CHART_BARS:
+        step = len(equity_df) // MAX_CHART_BARS
+        # Keep first, last, and evenly spaced points
+        idx = list(range(0, len(equity_df), step))
+        if idx[-1] != len(equity_df) - 1:
+            idx.append(len(equity_df) - 1)
+        equity_df = equity_df.iloc[idx]
 
     # Convert to JSON-serializable format
     converted = {
         "stats": result["stats"],
         "trades": _df_to_records(result["trades"]),
-        "equity": _df_to_records(result["equity"]),
+        "equity": _df_to_records(equity_df),
         "grid": _grid_to_chart(result["grid"]),
         "yearly": _yearly_breakdown(result["trades"], result["stats"]),
     }
@@ -49,58 +67,84 @@ def _df_to_records(df: pd.DataFrame) -> list[dict]:
     return records.to_dict(orient="records")
 
 
+MAX_CHART_BARS = 10_000  # Downsample large datasets for browser performance
+
+
 def _grid_to_chart(grid: pd.DataFrame) -> dict:
-    """Convert grid DataFrame to TradingView chart format."""
+    """Convert grid DataFrame to TradingView chart format (vectorized)."""
     if grid is None or len(grid) == 0:
         return {"candles": [], "ma_lines": {}, "markers": []}
 
-    # Candles
-    candles = []
-    for t, row in grid.iterrows():
-        candles.append({
-            "time": int(t.timestamp()),
-            "open": float(row["open"]),
-            "high": float(row["high"]),
-            "low": float(row["low"]),
-            "close": float(row["close"]),
-        })
+    # Remove duplicate timestamps (can happen with M1/M5 data)
+    grid = grid[~grid.index.duplicated(keep="last")]
 
-    # MA lines
+    # Downsample if too many bars (keep all signal bars + evenly spaced bars)
+    if len(grid) > MAX_CHART_BARS:
+        step = len(grid) // MAX_CHART_BARS
+        sampled_idx = set(range(0, len(grid), step))
+        # Always include bars with signals
+        if "signal" in grid.columns:
+            signal_idx = set(grid.index.get_indexer(grid[grid["signal"] != 0].index))
+            sampled_idx |= signal_idx
+        keep = sorted(sampled_idx)
+        grid = grid.iloc[keep]
+
+    timestamps = (grid.index.astype("int64") // 10**9).tolist()
+
+    # Ensure unique timestamps after downsampling (safety check)
+    seen = set()
+    unique_idx = []
+    for i, ts in enumerate(timestamps):
+        if ts not in seen:
+            seen.add(ts)
+            unique_idx.append(i)
+    if len(unique_idx) < len(timestamps):
+        grid = grid.iloc[unique_idx]
+        timestamps = [timestamps[i] for i in unique_idx]
+
+    # Candles — vectorized
+    candles = [
+        {"time": ts, "open": o, "high": h, "low": lo, "close": c}
+        for ts, o, h, lo, c in zip(
+            timestamps,
+            grid["open"].tolist(),
+            grid["high"].tolist(),
+            grid["low"].tolist(),
+            grid["close"].tolist(),
+        )
+    ]
+
+    # MA lines — vectorized, skip NaN
     ma_lines = {}
-    ma_colors = {"ma_30": "#2196F3", "ma_60": "#FF9800", "ma_120": "#4CAF50", "ma_240": "#F44336"}
     for col in ["ma_30", "ma_60", "ma_120", "ma_240"]:
         if col in grid.columns:
-            line = []
-            for t, row in grid.iterrows():
-                v = row[col]
-                if pd.notna(v):
-                    line.append({"time": int(t.timestamp()), "value": float(v)})
-            ma_lines[col] = line
+            mask = grid[col].notna()
+            ts_vals = [timestamps[i] for i in mask.values.nonzero()[0]]
+            ma_vals = grid.loc[mask, col].tolist()
+            ma_lines[col] = [
+                {"time": t, "value": v} for t, v in zip(ts_vals, ma_vals)
+            ]
 
-    # Signal markers
+    # Signal markers — vectorized, filter non-zero
     markers = []
     if "signal" in grid.columns:
-        for t, row in grid.iterrows():
-            sig = int(row["signal"])
-            if sig == 0:
-                continue
-            ts = int(t.timestamp())
-            if sig in (1, 2):
-                markers.append({
-                    "time": ts,
-                    "position": "belowBar",
-                    "color": "#26a69a",
-                    "shape": "arrowUp",
-                    "text": "L",
-                })
-            elif sig in (-1, -2):
-                markers.append({
-                    "time": ts,
-                    "position": "aboveBar",
-                    "color": "#ef5350",
-                    "shape": "arrowDown",
-                    "text": "S",
-                })
+        sig_series = grid["signal"]
+        nonzero = sig_series != 0
+        if nonzero.any():
+            sig_ts = [timestamps[i] for i in nonzero.values.nonzero()[0]]
+            sig_vals = sig_series[nonzero].tolist()
+            for ts, sig in zip(sig_ts, sig_vals):
+                sig = int(sig)
+                if sig in (1, 2):
+                    markers.append({
+                        "time": ts, "position": "belowBar",
+                        "color": "#26a69a", "shape": "arrowUp", "text": "L",
+                    })
+                elif sig in (-1, -2):
+                    markers.append({
+                        "time": ts, "position": "aboveBar",
+                        "color": "#ef5350", "shape": "arrowDown", "text": "S",
+                    })
 
     return {"candles": candles, "ma_lines": ma_lines, "markers": markers}
 

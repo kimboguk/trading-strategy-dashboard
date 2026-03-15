@@ -15,6 +15,7 @@ class BacktestRequest(BaseModel):
     tp_pips: Optional[float] = None
     sl_pips: Optional[float] = None
     filter_tfs: Optional[list[str]] = None  # e.g. ["D1", "H1"]
+    alignment_mas: Optional[list[int]] = None  # e.g. [30, 60, 120]
 
 
 class TradeRecord(BaseModel):

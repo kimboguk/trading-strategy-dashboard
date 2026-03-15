@@ -38,6 +38,7 @@ def get_backtest_status(task_id: str):
         "task_id": task.task_id,
         "status": task.status,
         "progress": task.progress,
+        "message": task.message,
         "error": task.error,
     }
 

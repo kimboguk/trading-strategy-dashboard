@@ -5,8 +5,9 @@ import type { BacktestRequest, SymbolInfo, StrategyInfo } from "@/lib/types";
 import { getSymbols, getTimeframes, getSymbolDateRange, getStrategies } from "@/lib/api";
 
 // Ordered from highest to lowest
-const TF_RANK: Record<string, number> = { D1: 5, H4: 4, H1: 3, M30: 2, M15: 1 };
-const FILTER_TF_OPTIONS = ["D1", "H4", "H1"];
+const TF_RANK: Record<string, number> = { D1: 7, H4: 6, H1: 5, M30: 4, M15: 3, M5: 2, M1: 1 };
+const FILTER_TF_OPTIONS = ["D1", "H4", "H1", "M30", "M15"];
+const MA_OPTIONS = [30, 60, 120, 240];
 
 interface Props {
   onSubmit: (params: BacktestRequest) => void;
@@ -28,6 +29,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
   const [tpPips, setTpPips] = useState("");
   const [slPips, setSlPips] = useState("");
   const [filterTfs, setFilterTfs] = useState<string[]>([]);
+  const [alignmentMas, setAlignmentMas] = useState<number[]>([]);
 
   useEffect(() => {
     getSymbols().then(setSymbols);
@@ -57,6 +59,12 @@ export function ParameterForm({ onSubmit, loading }: Props) {
     );
   };
 
+  const toggleAlignment = (period: number) => {
+    setAlignmentMas((prev) =>
+      prev.includes(period) ? prev.filter((p) => p !== period) : [...prev, period]
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const params: BacktestRequest = {
@@ -70,6 +78,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
     if (tpPips) params.tp_pips = parseFloat(tpPips);
     if (slPips) params.sl_pips = parseFloat(slPips);
     if (filterTfs.length > 0) params.filter_tfs = filterTfs;
+    if (alignmentMas.length >= 2) params.alignment_mas = alignmentMas;
     onSubmit(params);
   };
 
@@ -187,6 +196,31 @@ export function ParameterForm({ onSubmit, loading }: Props) {
         </div>
       </div>
       )}
+
+      {/* MA Alignment Filter */}
+      <div>
+        <label className={labelClass}>MA Alignment Filter</label>
+        <div className="flex gap-2">
+          {MA_OPTIONS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => toggleAlignment(p)}
+              className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
+              style={{
+                background: alignmentMas.includes(p) ? "var(--accent)" : "var(--bg-tertiary)",
+                borderColor: alignmentMas.includes(p) ? "var(--accent)" : "var(--border)",
+                color: alignmentMas.includes(p) ? "#fff" : "var(--text-secondary)",
+              }}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+        {alignmentMas.length === 1 && (
+          <p className="text-xs mt-1" style={{ color: "var(--yellow, #f59e0b)" }}>Select 2+ MAs</p>
+        )}
+      </div>
 
       {/* Submit */}
       <button
