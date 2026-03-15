@@ -16,6 +16,7 @@ class BacktestRequest(BaseModel):
     sl_pips: Optional[float] = None
     filter_tfs: Optional[list[str]] = None  # e.g. ["D1", "H1"]
     alignment_mas: Optional[list[int]] = None  # e.g. [30, 60, 120]
+    ribbon_periods: Optional[list[int]] = None  # e.g. [30, 60] — default: all 4
 
 
 class TradeRecord(BaseModel):

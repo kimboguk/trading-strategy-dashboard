@@ -28,6 +28,7 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
         sl_pips=params.get("sl_pips"),
         filter_tfs=params.get("filter_tfs"),
         alignment_mas=params.get("alignment_mas"),
+        ribbon_periods=params.get("ribbon_periods"),
         verbose=False,
         progress_callback=_on_progress,
     )

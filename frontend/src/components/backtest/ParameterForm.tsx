@@ -30,6 +30,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
   const [slPips, setSlPips] = useState("");
   const [filterTfs, setFilterTfs] = useState<string[]>([]);
   const [alignmentMas, setAlignmentMas] = useState<number[]>([]);
+  const [ribbonPeriods, setRibbonPeriods] = useState<number[]>([30, 60, 120, 240]);
 
   useEffect(() => {
     getSymbols().then(setSymbols);
@@ -65,6 +66,13 @@ export function ParameterForm({ onSubmit, loading }: Props) {
     );
   };
 
+  const toggleRibbon = (period: number) => {
+    setRibbonPeriods((prev) => {
+      if (prev.includes(period) && prev.length <= 1) return prev;
+      return prev.includes(period) ? prev.filter((p) => p !== period) : [...prev, period];
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const params: BacktestRequest = {
@@ -79,6 +87,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
     if (slPips) params.sl_pips = parseFloat(slPips);
     if (filterTfs.length > 0) params.filter_tfs = filterTfs;
     if (alignmentMas.length >= 2) params.alignment_mas = alignmentMas;
+    if (ribbonPeriods.length < 4) params.ribbon_periods = ribbonPeriods;
     onSubmit(params);
   };
 
@@ -134,6 +143,28 @@ export function ParameterForm({ onSubmit, loading }: Props) {
           <option value="ema">EMA</option>
           <option value="sma">SMA</option>
         </select>
+      </div>
+
+      {/* Ribbon MAs */}
+      <div>
+        <label className={labelClass}>Ribbon MAs</label>
+        <div className="flex gap-2">
+          {MA_OPTIONS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => toggleRibbon(p)}
+              className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
+              style={{
+                background: ribbonPeriods.includes(p) ? "var(--accent)" : "var(--bg-tertiary)",
+                borderColor: ribbonPeriods.includes(p) ? "var(--accent)" : "var(--border)",
+                color: ribbonPeriods.includes(p) ? "#fff" : "var(--text-secondary)",
+              }}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Date Range */}

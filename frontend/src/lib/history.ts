@@ -83,6 +83,11 @@ export function generateId(): string {
 export function formatLabel(params: BacktestRequest): string {
   const parts = [params.symbol, params.timeframe, params.ma_type.toUpperCase()];
   if (params.filter_tfs?.length) parts.push(`+${params.filter_tfs.join("+")}`);
+  if (params.ribbon_periods && params.ribbon_periods.length < 4) {
+    parts.push(`R${[...params.ribbon_periods].sort((a, b) => a - b).join("|")}`);
+  } else {
+    parts.push("RT");
+  }
   if (params.alignment_mas && params.alignment_mas.length >= 2) {
     parts.push(params.alignment_mas.sort((a, b) => a - b).join("|"));
   }

@@ -24,6 +24,7 @@ export interface BacktestRequest {
   sl_pips?: number;
   filter_tfs?: string[];
   alignment_mas?: number[];
+  ribbon_periods?: number[];
 }
 
 export interface BacktestStats {
