@@ -44,6 +44,11 @@ export default function PortfolioPage() {
         setComplete(res);
       } catch (err: any) {
         if (err.name === "AbortError") return;
+        // Stale task from previous session — reset instead of showing error
+        if (err.message?.includes("404")) {
+          cancel();
+          return;
+        }
         setError(err.message || "Portfolio backtest failed");
       }
     })();
@@ -153,6 +158,12 @@ export default function PortfolioPage() {
               >
                 {stats.total_pnl_usd >= 0 ? "+" : ""}${stats.total_pnl_usd.toFixed(0)}
               </span>
+              {(stats.started_at || stats.elapsed_sec != null) && (
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {stats.started_at}
+                  {stats.elapsed_sec != null && ` (${stats.elapsed_sec}s)`}
+                </span>
+              )}
             </div>
 
             {/* Summary cards */}

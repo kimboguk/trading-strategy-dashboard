@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Backtest service: wraps run_backtest() and converts results to JSON-friendly dicts."""
 
+import time
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 from bridge.engine_adapter import get_backtest_runner
 from services.task_manager import update_task
@@ -9,6 +11,9 @@ from services.task_manager import update_task
 def run_backtest_task(task_id: str, params: dict) -> dict:
     """Run backtest synchronously (called from thread pool)."""
     update_task(task_id, status="running", message="Starting...")
+    KST = timezone(timedelta(hours=9))
+    started_at = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+    t0 = time.monotonic()
 
     run_backtest = get_backtest_runner()
 
@@ -33,6 +38,7 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
         progress_callback=_on_progress,
     )
 
+    elapsed_sec = round(time.monotonic() - t0, 1)
     update_task(task_id, message="Building charts...")
 
     # Downsample equity curve for large datasets
@@ -46,8 +52,11 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
         equity_df = equity_df.iloc[idx]
 
     # Convert to JSON-serializable format
+    stats = result["stats"]
+    stats["elapsed_sec"] = elapsed_sec
+    stats["started_at"] = started_at
     converted = {
-        "stats": result["stats"],
+        "stats": stats,
         "trades": _df_to_records(result["trades"]),
         "equity": _df_to_records(equity_df),
         "grid": _grid_to_chart(result["grid"]),

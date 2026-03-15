@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """Portfolio service: runs backtest per symbol, aggregates results."""
 
+import time
 import numpy as np
 import pandas as pd
-from datetime import timedelta
+from datetime import datetime, timezone, timedelta
 
-from bridge.engine_adapter import get_backtest_runner
+from bridge.engine_adapter import get_backtest_runner, get_cache_clearer
 from services.task_manager import update_task
 from services.backtest_service import _df_to_records, _yearly_breakdown, MAX_CHART_BARS
 
@@ -13,6 +14,9 @@ from services.backtest_service import _df_to_records, _yearly_breakdown, MAX_CHA
 def run_portfolio_task(task_id: str, params: dict) -> dict:
     """Run portfolio backtest (called from thread pool)."""
     update_task(task_id, status="running", message="Starting portfolio...")
+    KST = timezone(timedelta(hours=9))
+    started_at = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+    t0 = time.monotonic()
 
     run_backtest = get_backtest_runner()
     symbols = params["symbols"]
@@ -38,6 +42,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
             alignment_mas=params.get("alignment_mas"),
             ribbon_periods=params.get("ribbon_periods"),
             verbose=False,
+            _keep_cache=True,
         )
 
         trades_df = result["trades"]
@@ -104,9 +109,12 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
         max_dd_pct = 0.0
 
     # --- Combined stats ---
+    elapsed_sec = round(time.monotonic() - t0, 1)
     combined_stats = _compute_combined_stats(
         merged_trades, per_symbol, total_initial, final_equity, max_dd_pct
     )
+    combined_stats["elapsed_sec"] = elapsed_sec
+    combined_stats["started_at"] = started_at
 
     # --- Combined yearly ---
     combined_yearly = _combined_yearly_breakdown(merged_trades)
@@ -118,6 +126,13 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
         "yearly": combined_yearly,
         "per_symbol": per_symbol,  # stats dicts + yearly lists
     }
+
+    # Free M1 cache memory after portfolio run
+    try:
+        clear_cache = get_cache_clearer()
+        clear_cache()
+    except Exception:
+        pass
 
     update_task(task_id, status="complete", progress=100, result=converted)
     return converted

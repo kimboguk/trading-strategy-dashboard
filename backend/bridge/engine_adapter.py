@@ -51,3 +51,10 @@ def get_data_loader():
     init_strategy_paths()
     from data_loader import DataLoader
     return DataLoader
+
+
+def get_cache_clearer():
+    """Return the clear_m1_cache function from trend_grid backtest."""
+    init_strategy_paths()
+    from backtest import clear_m1_cache
+    return clear_m1_cache

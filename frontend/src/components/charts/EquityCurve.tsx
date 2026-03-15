@@ -54,11 +54,21 @@ export function EquityCurve({ data, height = 200 }: Props) {
       priceLineVisible: false,
     });
 
-    const chartData = data.map((d) => ({
-      time: Math.floor(new Date(d.time).getTime() / 1000) as any,
-      value: d.equity,
-    }));
+    // Deduplicate and sort by time (required by lightweight-charts)
+    const seen = new Set<number>();
+    const chartData = data
+      .map((d) => ({
+        time: Math.floor(new Date(d.time).getTime() / 1000) as any,
+        value: d.equity,
+      }))
+      .filter((d) => {
+        if (seen.has(d.time)) return false;
+        seen.add(d.time);
+        return true;
+      })
+      .sort((a, b) => a.time - b.time);
 
+    if (chartData.length === 0) return;
     lineSeries.setData(chartData);
     chart.timeScale().fitContent();
 

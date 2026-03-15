@@ -48,6 +48,8 @@ export interface BacktestStats {
   avg_holding: string;
   initial_capital: number;
   final_equity: number;
+  elapsed_sec?: number;
+  started_at?: string;
 }
 
 export interface TradeRecord {

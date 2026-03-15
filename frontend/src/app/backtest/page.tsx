@@ -199,6 +199,12 @@ export default function BacktestPage() {
                 {stats.total_pnl_pips >= 0 ? "+" : ""}{stats.total_pnl_pips.toFixed(1)} pips
                 {" "}(${stats.total_pnl_usd.toFixed(0)})
               </span>
+              {(stats.started_at || stats.elapsed_sec != null) && (
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {stats.started_at}
+                  {stats.elapsed_sec != null && ` (${stats.elapsed_sec}s)`}
+                </span>
+              )}
             </div>
 
             {/* Summary cards */}
