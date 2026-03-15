@@ -1,9 +1,91 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type {
+  BacktestRequest,
+  BacktestStats,
+  TradeRecord,
+  YearlyRow,
+  ChartData,
+  EquityPoint,
   PortfolioRequest,
   PortfolioResult,
 } from "./types";
+
+// ── Backtest Store ──
+
+export interface BacktestResult {
+  stats: BacktestStats;
+  trades: TradeRecord[];
+  chartData: ChartData | null;
+  equityData: EquityPoint[];
+  yearlyData: YearlyRow[];
+}
+
+interface BacktestState {
+  // Running task
+  taskId: string | null;
+  loading: boolean;
+  progressMsg: string;
+  error: string | null;
+  params: BacktestRequest | null;
+
+  // Result
+  result: BacktestResult | null;
+
+  // Actions
+  setRunning: (taskId: string, params: BacktestRequest) => void;
+  setProgress: (msg: string) => void;
+  setComplete: (result: BacktestResult) => void;
+  setError: (error: string) => void;
+  setResult: (result: BacktestResult, params: BacktestRequest) => void;
+  cancel: () => void;
+  reset: () => void;
+}
+
+export const useBacktestStore = create<BacktestState>()(
+  persist(
+    (set) => ({
+      taskId: null,
+      loading: false,
+      progressMsg: "",
+      error: null,
+      params: null,
+      result: null,
+
+      setRunning: (taskId, params) =>
+        set({ taskId, loading: true, progressMsg: "", error: null, params, result: null }),
+
+      setProgress: (msg) => set({ progressMsg: msg }),
+
+      setComplete: (result) =>
+        set({ loading: false, result, taskId: null }),
+
+      setError: (error) =>
+        set({ loading: false, error, taskId: null }),
+
+      setResult: (result, params) =>
+        set({ result, params, loading: false, taskId: null, error: null }),
+
+      cancel: () =>
+        set({ loading: false, taskId: null, progressMsg: "" }),
+
+      reset: () =>
+        set({ taskId: null, loading: false, progressMsg: "", error: null, params: null, result: null }),
+    }),
+    {
+      name: "backtest-store",
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        taskId: state.taskId,
+        loading: state.loading,
+        params: state.params,
+        result: state.result,
+      }),
+    }
+  )
+);
+
+// ── Portfolio Store ──
 
 interface PortfolioState {
   // Running task

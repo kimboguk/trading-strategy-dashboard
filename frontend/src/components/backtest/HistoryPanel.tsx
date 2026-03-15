@@ -6,10 +6,10 @@ import { loadHistory, deleteFromHistory, clearHistory, formatLabel } from "@/lib
 
 interface Props {
   onSelect: (entry: SavedBacktest) => void;
-  refreshKey: number;  // increment to reload
+  refreshKey?: number;  // increment to reload
 }
 
-export function HistoryPanel({ onSelect, refreshKey }: Props) {
+export function HistoryPanel({ onSelect, refreshKey = 0 }: Props) {
   const [history, setHistory] = useState<SavedBacktest[]>([]);
   const [expanded, setExpanded] = useState(true);
 

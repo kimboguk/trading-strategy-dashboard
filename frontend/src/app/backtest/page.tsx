@@ -1,14 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type {
   BacktestRequest,
   BacktestStats,
-  TradeRecord,
-  YearlyRow,
-  ChartData,
-  EquityPoint,
 } from "@/lib/types";
 import {
   runBacktest,
@@ -20,6 +16,7 @@ import {
   getBacktestYearly,
 } from "@/lib/api";
 import { saveToHistory, generateId, formatLabel, type SavedBacktest } from "@/lib/history";
+import { useBacktestStore, type BacktestResult } from "@/lib/store";
 import { ParameterForm } from "@/components/backtest/ParameterForm";
 import { StatsTable } from "@/components/backtest/StatsTable";
 import { TradesTable } from "@/components/backtest/TradesTable";
@@ -36,34 +33,57 @@ const EquityCurve = dynamic(
 );
 
 export default function BacktestPage() {
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressMsg, setProgressMsg] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const {
+    taskId, loading, progressMsg, error, params: currentParams, result,
+    setRunning, setProgress, setComplete, setError, setResult, cancel,
+  } = useBacktestStore();
+
+  const abortRef = useRef<AbortController | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
 
-  const [stats, setStats] = useState<BacktestStats | null>(null);
-  const [trades, setTrades] = useState<TradeRecord[]>([]);
-  const [chartData, setChartData] = useState<ChartData | null>(null);
-  const [equityData, setEquityData] = useState<EquityPoint[]>([]);
-  const [yearlyData, setYearlyData] = useState<YearlyRow[]>([]);
-  const [currentParams, setCurrentParams] = useState<BacktestRequest | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  // Resume polling if we navigate back while a task is running
+  useEffect(() => {
+    if (!taskId || !loading) return;
+
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    (async () => {
+      try {
+        await pollUntilComplete(taskId, undefined, setProgress, 2000, ac.signal);
+
+        const [s, t, c, e, y] = await Promise.all([
+          getBacktestStats(taskId),
+          getBacktestTrades(taskId),
+          getBacktestChart(taskId),
+          getBacktestEquity(taskId),
+          getBacktestYearly(taskId),
+        ]);
+
+        setComplete({ stats: s, trades: t, chartData: c, equityData: e, yearlyData: y });
+      } catch (err: any) {
+        if (err.name === "AbortError") return;
+        if (err.message?.includes("404")) {
+          cancel();
+          return;
+        }
+        setError(err.message || "Backtest failed");
+      }
+    })();
+
+    return () => { ac.abort(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRun = async (params: BacktestRequest) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
 
-    setLoading(true);
-    setError(null);
-    setProgress(0);
-    setProgressMsg("");
-    setCurrentParams(params);
-
     try {
       const { task_id } = await runBacktest(params);
-      await pollUntilComplete(task_id, setProgress, setProgressMsg, 2000, ac.signal);
+      setRunning(task_id, params);
+
+      await pollUntilComplete(task_id, undefined, setProgress, 2000, ac.signal);
 
       const [s, t, c, e, y] = await Promise.all([
         getBacktestStats(task_id),
@@ -73,13 +93,12 @@ export default function BacktestPage() {
         getBacktestYearly(task_id),
       ]);
 
-      setStats(s);
-      setTrades(t);
-      setChartData(c);
-      setEquityData(e);
-      setYearlyData(y);
+      const backtestResult: BacktestResult = {
+        stats: s, trades: t, chartData: c, equityData: e, yearlyData: y,
+      };
+      setComplete(backtestResult);
 
-      // Save to history (including chart data for instant restore)
+      // Save to history
       saveToHistory({
         id: generateId(),
         timestamp: new Date().toISOString(),
@@ -93,26 +112,34 @@ export default function BacktestPage() {
       });
       setHistoryKey((k) => k + 1);
     } catch (err: any) {
-      if (err.name === "AbortError") return; // cancelled — silently stop
+      if (err.name === "AbortError") return;
       setError(err.message || "Backtest failed");
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleCancel = () => {
     abortRef.current?.abort();
-    setLoading(false);
+    cancel();
   };
 
   const handleHistorySelect = (entry: SavedBacktest) => {
-    setStats(entry.stats);
-    setYearlyData(entry.yearly);
-    setCurrentParams(entry.params);
-    setChartData(entry.chartData ?? null);
-    setEquityData(entry.equityData ?? []);
-    setTrades(entry.trades ?? []);
+    setResult(
+      {
+        stats: entry.stats,
+        trades: entry.trades ?? [],
+        chartData: entry.chartData ?? null,
+        equityData: entry.equityData ?? [],
+        yearlyData: entry.yearly,
+      },
+      entry.params,
+    );
   };
+
+  const stats = result?.stats ?? null;
+  const trades = result?.trades ?? [];
+  const chartData = result?.chartData ?? null;
+  const equityData = result?.equityData ?? [];
+  const yearlyData = result?.yearlyData ?? [];
 
   const periodLabel = currentParams?.start && currentParams?.end
     ? `${currentParams.start} ~ ${currentParams.end}`

@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Increase proxy timeout for long-running backtests (5 min)
+  // Increase proxy timeout for long-running backtests (1 hour)
   serverExternalPackages: [],
   experimental: {
-    proxyTimeout: 300_000,
+    proxyTimeout: 3_600_000,
   },
   async rewrites() {
     return [
