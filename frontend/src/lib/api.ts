@@ -8,6 +8,8 @@ import type {
   ChartData,
   TaskStatus,
   EquityPoint,
+  PortfolioRequest,
+  PortfolioResult,
 } from "./types";
 
 const BASE = "";  // same origin via Next.js rewrite
@@ -73,6 +75,24 @@ export async function getBacktestYearly(taskId: string): Promise<YearlyRow[]> {
   return fetchJSON(`/api/backtest/${taskId}/yearly`);
 }
 
+// ── Portfolio ──
+
+export async function runPortfolio(req: PortfolioRequest): Promise<{ task_id: string }> {
+  return fetchJSON("/api/portfolio/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export async function getPortfolioStatus(taskId: string): Promise<TaskStatus> {
+  return fetchJSON(`/api/portfolio/${taskId}`);
+}
+
+export async function getPortfolioResult(taskId: string): Promise<PortfolioResult> {
+  return fetchJSON(`/api/portfolio/${taskId}/result`);
+}
+
 // ── Poll helper ──
 
 export async function pollUntilComplete(
@@ -80,11 +100,31 @@ export async function pollUntilComplete(
   onProgress?: (p: number) => void,
   onMessage?: (msg: string) => void,
   intervalMs = 2000,
+  signal?: AbortSignal,
 ): Promise<void> {
   while (true) {
+    if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
     const status = await getTaskStatus(taskId);
     if (status.status === "complete") return;
     if (status.status === "error") throw new Error(status.error || "Backtest failed");
+    onProgress?.(status.progress);
+    if (status.message) onMessage?.(status.message);
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
+export async function pollPortfolioUntilComplete(
+  taskId: string,
+  onProgress?: (p: number) => void,
+  onMessage?: (msg: string) => void,
+  intervalMs = 2000,
+  signal?: AbortSignal,
+): Promise<void> {
+  while (true) {
+    if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+    const status = await getPortfolioStatus(taskId);
+    if (status.status === "complete") return;
+    if (status.status === "error") throw new Error(status.error || "Portfolio backtest failed");
     onProgress?.(status.progress);
     if (status.message) onMessage?.(status.message);
     await new Promise((r) => setTimeout(r, intervalMs));

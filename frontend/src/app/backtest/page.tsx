@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import type {
   BacktestRequest,
@@ -48,8 +48,13 @@ export default function BacktestPage() {
   const [equityData, setEquityData] = useState<EquityPoint[]>([]);
   const [yearlyData, setYearlyData] = useState<YearlyRow[]>([]);
   const [currentParams, setCurrentParams] = useState<BacktestRequest | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleRun = async (params: BacktestRequest) => {
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
     setLoading(true);
     setError(null);
     setProgress(0);
@@ -58,7 +63,7 @@ export default function BacktestPage() {
 
     try {
       const { task_id } = await runBacktest(params);
-      await pollUntilComplete(task_id, setProgress, setProgressMsg);
+      await pollUntilComplete(task_id, setProgress, setProgressMsg, 2000, ac.signal);
 
       const [s, t, c, e, y] = await Promise.all([
         getBacktestStats(task_id),
@@ -88,10 +93,16 @@ export default function BacktestPage() {
       });
       setHistoryKey((k) => k + 1);
     } catch (err: any) {
+      if (err.name === "AbortError") return; // cancelled — silently stop
       setError(err.message || "Backtest failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+    setLoading(false);
   };
 
   const handleHistorySelect = (entry: SavedBacktest) => {
@@ -124,9 +135,19 @@ export default function BacktestPage() {
                   style={{ width: "100%", background: "var(--accent)", opacity: 0.6 }}
                 />
               </div>
-              <p className="text-xs mt-1 text-center" style={{ color: "var(--text-secondary)" }}>
-                {progressMsg || "Starting..."}
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {progressMsg || "Starting..."}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="text-xs px-2 py-0.5 rounded border transition-colors hover:bg-red-500/20"
+                  style={{ borderColor: "var(--border)", color: "var(--red)" }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
           {error && (

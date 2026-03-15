@@ -113,3 +113,36 @@ export interface EquityPoint {
   time: string;
   equity: number;
 }
+
+// ── Portfolio Types ──
+
+export interface PortfolioRequest {
+  strategy: string;
+  symbols: string[];
+  timeframe: string;
+  ma_type: string;
+  start?: string;
+  end?: string;
+  tp_pips?: number;
+  sl_pips?: number;
+  filter_tfs?: string[];
+  alignment_mas?: number[];
+  ribbon_periods?: number[];
+}
+
+export interface PortfolioTradeRecord extends TradeRecord {
+  symbol: string;
+}
+
+export interface PerSymbolResult {
+  stats: BacktestStats;
+  yearly: YearlyRow[];
+}
+
+export interface PortfolioResult {
+  stats: BacktestStats;
+  trades: PortfolioTradeRecord[];
+  equity: EquityPoint[];
+  yearly: YearlyRow[];
+  per_symbol: Record<string, PerSymbolResult>;
+}

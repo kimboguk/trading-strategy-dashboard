@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from bridge.engine_adapter import init_strategy_paths
-from routers import symbols, backtest
+from routers import symbols, backtest, portfolio
 
 
 @asynccontextmanager
@@ -43,3 +43,4 @@ def health():
 
 app.include_router(symbols.router)
 app.include_router(backtest.router)
+app.include_router(portfolio.router)
