@@ -43,7 +43,7 @@ export async function getSymbolDateRange(symbol: string): Promise<{ start: strin
 
 // ── Backtest ──
 
-export async function runBacktest(req: BacktestRequest): Promise<{ task_id: string }> {
+export async function runBacktest(req: BacktestRequest): Promise<{ task_id: string; result_id: string }> {
   return fetchJSON("/api/backtest/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -75,6 +75,36 @@ export async function getBacktestYearly(taskId: string): Promise<YearlyRow[]> {
   return fetchJSON(`/api/backtest/${taskId}/yearly`);
 }
 
+// ── Backtest History (DB-backed) ──
+
+export interface BacktestHistoryEntry {
+  id: string;
+  created_at: string;
+  params: import("./types").BacktestRequest;
+  stats: import("./types").BacktestStats;
+  yearly: import("./types").YearlyRow[];
+}
+
+export interface BacktestFullResult {
+  stats: import("./types").BacktestStats;
+  trades: import("./types").TradeRecord[];
+  grid: import("./types").ChartData;
+  equity: import("./types").EquityPoint[];
+  yearly: import("./types").YearlyRow[];
+}
+
+export async function getBacktestHistory(): Promise<BacktestHistoryEntry[]> {
+  return fetchJSON("/api/backtest/history");
+}
+
+export async function getSavedBacktestResult(resultId: string): Promise<BacktestFullResult> {
+  return fetchJSON(`/api/backtest/saved/${resultId}`);
+}
+
+export async function deleteSavedBacktest(resultId: string): Promise<void> {
+  await fetchJSON(`/api/backtest/saved/${resultId}`, { method: "DELETE" });
+}
+
 // ── Portfolio ──
 
 export async function runPortfolio(req: PortfolioRequest): Promise<{ task_id: string }> {
@@ -91,6 +121,28 @@ export async function getPortfolioStatus(taskId: string): Promise<TaskStatus> {
 
 export async function getPortfolioResult(taskId: string): Promise<PortfolioResult> {
   return fetchJSON(`/api/portfolio/${taskId}/result`);
+}
+
+// ── Portfolio History (DB-backed) ──
+
+export interface PortfolioHistoryEntry {
+  id: string;
+  created_at: string;
+  params: import("./types").PortfolioRequest;
+  stats: import("./types").BacktestStats;
+  yearly: import("./types").YearlyRow[];
+}
+
+export async function getPortfolioHistory(): Promise<PortfolioHistoryEntry[]> {
+  return fetchJSON("/api/portfolio/history");
+}
+
+export async function getSavedPortfolioResult(resultId: string): Promise<PortfolioResult> {
+  return fetchJSON(`/api/portfolio/saved/${resultId}`);
+}
+
+export async function deleteSavedPortfolio(resultId: string): Promise<void> {
+  await fetchJSON(`/api/portfolio/saved/${resultId}`, { method: "DELETE" });
 }
 
 // ── Poll helper ──

@@ -1,40 +1,33 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { BacktestRequest } from "@/lib/types";
-import { getBacktestHistory, deleteSavedBacktest } from "@/lib/api";
-import type { BacktestHistoryEntry } from "@/lib/api";
+import type { PortfolioRequest, BacktestStats, YearlyRow } from "@/lib/types";
+import { getPortfolioHistory, deleteSavedPortfolio } from "@/lib/api";
+import type { PortfolioHistoryEntry } from "@/lib/api";
 
-function formatLabel(params: BacktestRequest): string {
-  const parts = [params.symbol, params.timeframe, params.ma_type.toUpperCase()];
+function formatPortfolioLabel(params: PortfolioRequest): string {
+  const n = params.symbols.length;
+  const parts = [`${n}sym`, params.timeframe, params.ma_type.toUpperCase()];
   if (params.filter_tfs?.length) parts.push(`+${params.filter_tfs.join("+")}`);
-  if (params.ribbon_periods && params.ribbon_periods.length < 4) {
-    parts.push(`R${[...params.ribbon_periods].sort((a, b) => a - b).join("|")}`);
-  } else {
-    parts.push("RT");
-  }
-  if (params.alignment_mas && params.alignment_mas.length >= 2) {
-    parts.push(params.alignment_mas.sort((a, b) => a - b).join("|"));
-  }
   if (params.tp_pips) parts.push(`TP${params.tp_pips}`);
   if (params.sl_pips) parts.push(`SL${params.sl_pips}`);
   return parts.join(" ");
 }
 
 interface Props {
-  onSelect: (entry: BacktestHistoryEntry) => void;
+  onSelect: (entry: PortfolioHistoryEntry) => void;
   refreshKey?: number;
 }
 
-export function HistoryPanel({ onSelect, refreshKey = 0 }: Props) {
-  const [history, setHistory] = useState<BacktestHistoryEntry[]>([]);
+export function PortfolioHistoryPanel({ onSelect, refreshKey = 0 }: Props) {
+  const [history, setHistory] = useState<PortfolioHistoryEntry[]>([]);
   const [expanded, setExpanded] = useState(true);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getBacktestHistory()
+    getPortfolioHistory()
       .then((data) => { if (!cancelled) setHistory(data); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -44,7 +37,7 @@ export function HistoryPanel({ onSelect, refreshKey = 0 }: Props) {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await deleteSavedBacktest(id);
+      await deleteSavedPortfolio(id);
       setHistory((prev) => prev.filter((h) => h.id !== id));
     } catch { /* ignore */ }
   };
@@ -81,11 +74,11 @@ export function HistoryPanel({ onSelect, refreshKey = 0 }: Props) {
             >
               <div className="min-w-0">
                 <p className="text-xs font-medium truncate">
-                  {formatLabel(entry.params)}
+                  {formatPortfolioLabel(entry.params)}
                 </p>
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  <span style={{ color: (entry.stats?.total_pnl_pips ?? 0) >= 0 ? "var(--green)" : "var(--red)" }}>
-                    {(entry.stats?.total_pnl_pips ?? 0) >= 0 ? "+" : ""}{(entry.stats?.total_pnl_pips ?? 0).toFixed(0)}p
+                  <span style={{ color: (entry.stats?.total_pnl_usd ?? 0) >= 0 ? "var(--green)" : "var(--red)" }}>
+                    {(entry.stats?.total_pnl_usd ?? 0) >= 0 ? "+" : ""}${(entry.stats?.total_pnl_usd ?? 0).toFixed(0)}
                   </span>
                   {" "}PF:{(entry.stats?.profit_factor ?? 0).toFixed(2)}
                   {" "}{entry.stats?.total_trades ?? 0}t

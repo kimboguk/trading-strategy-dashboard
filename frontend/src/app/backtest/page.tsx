@@ -14,8 +14,10 @@ import {
   getBacktestChart,
   getBacktestEquity,
   getBacktestYearly,
+  getSavedBacktestResult,
 } from "@/lib/api";
-import { saveToHistory, generateId, formatLabel, type SavedBacktest } from "@/lib/history";
+import type { BacktestHistoryEntry } from "@/lib/api";
+import { formatLabel } from "@/lib/history";
 import { useBacktestStore, type BacktestResult } from "@/lib/store";
 import { ParameterForm } from "@/components/backtest/ParameterForm";
 import { StatsTable } from "@/components/backtest/StatsTable";
@@ -41,26 +43,28 @@ export default function BacktestPage() {
   const abortRef = useRef<AbortController | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
 
-  // Resume polling if we navigate back while a task is running
+  // Resume polling or re-fetch result when navigating back
   useEffect(() => {
-    if (!taskId || !loading) return;
+    if (!taskId) return;
 
     const ac = new AbortController();
     abortRef.current = ac;
 
     (async () => {
       try {
-        await pollUntilComplete(taskId, undefined, setProgress, 2000, ac.signal);
-
-        const [s, t, c, e, y] = await Promise.all([
-          getBacktestStats(taskId),
-          getBacktestTrades(taskId),
-          getBacktestChart(taskId),
-          getBacktestEquity(taskId),
-          getBacktestYearly(taskId),
-        ]);
-
-        setComplete({ stats: s, trades: t, chartData: c, equityData: e, yearlyData: y });
+        if (loading) {
+          await pollUntilComplete(taskId, undefined, setProgress, 2000, ac.signal);
+        }
+        if (!result) {
+          const [s, t, c, e, y] = await Promise.all([
+            getBacktestStats(taskId),
+            getBacktestTrades(taskId),
+            getBacktestChart(taskId),
+            getBacktestEquity(taskId),
+            getBacktestYearly(taskId),
+          ]);
+          setComplete({ stats: s, trades: t, chartData: c, equityData: e, yearlyData: y }, taskId);
+        }
       } catch (err: any) {
         if (err.name === "AbortError") return;
         if (err.message?.includes("404")) {
@@ -96,20 +100,9 @@ export default function BacktestPage() {
       const backtestResult: BacktestResult = {
         stats: s, trades: t, chartData: c, equityData: e, yearlyData: y,
       };
-      setComplete(backtestResult);
+      setComplete(backtestResult, task_id);
 
-      // Save to history
-      saveToHistory({
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        params,
-        stats: s,
-        yearly: y,
-        taskId: task_id,
-        chartData: c,
-        equityData: e,
-        trades: t,
-      });
+      // DB save happens automatically on backend — just refresh history panel
       setHistoryKey((k) => k + 1);
     } catch (err: any) {
       if (err.name === "AbortError") return;
@@ -122,17 +115,32 @@ export default function BacktestPage() {
     cancel();
   };
 
-  const handleHistorySelect = (entry: SavedBacktest) => {
-    setResult(
-      {
-        stats: entry.stats,
-        trades: entry.trades ?? [],
-        chartData: entry.chartData ?? null,
-        equityData: entry.equityData ?? [],
-        yearlyData: entry.yearly,
-      },
-      entry.params,
-    );
+  const handleHistorySelect = async (entry: BacktestHistoryEntry) => {
+    try {
+      const res = await getSavedBacktestResult(entry.id);
+      setResult(
+        {
+          stats: res.stats,
+          trades: res.trades,
+          chartData: res.grid,
+          equityData: res.equity,
+          yearlyData: res.yearly,
+        },
+        entry.params,
+      );
+    } catch {
+      // Fallback: show lightweight data from history list
+      setResult(
+        {
+          stats: entry.stats,
+          trades: [],
+          chartData: null,
+          equityData: [],
+          yearlyData: entry.yearly,
+        },
+        entry.params,
+      );
+    }
   };
 
   const stats = result?.stats ?? null;
@@ -221,10 +229,10 @@ export default function BacktestPage() {
               )}
               <span
                 className="text-sm font-semibold ml-auto"
-                style={{ color: stats.total_pnl_pips >= 0 ? "var(--green)" : "var(--red)" }}
+                style={{ color: (stats.total_pnl_pips ?? 0) >= 0 ? "var(--green)" : "var(--red)" }}
               >
-                {stats.total_pnl_pips >= 0 ? "+" : ""}{stats.total_pnl_pips.toFixed(1)} pips
-                {" "}(${stats.total_pnl_usd.toFixed(0)})
+                {(stats.total_pnl_pips ?? 0) >= 0 ? "+" : ""}{(stats.total_pnl_pips ?? 0).toFixed(1)} pips
+                {" "}(${(stats.total_pnl_usd ?? 0).toFixed(0)})
               </span>
               {(stats.started_at || stats.elapsed_sec != null) && (
                 <span className="text-xs" style={{ color: "var(--text-secondary)" }}>

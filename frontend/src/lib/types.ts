@@ -141,10 +141,16 @@ export interface PerSymbolResult {
   yearly: YearlyRow[];
 }
 
+export interface CorrelationData {
+  symbols: string[];
+  matrix: number[][];
+}
+
 export interface PortfolioResult {
   stats: BacktestStats;
   trades: PortfolioTradeRecord[];
   equity: EquityPoint[];
   yearly: YearlyRow[];
   per_symbol: Record<string, PerSymbolResult>;
+  correlation?: CorrelationData;
 }

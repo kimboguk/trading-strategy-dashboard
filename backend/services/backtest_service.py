@@ -174,7 +174,7 @@ def _yearly_breakdown(trades_df: pd.DataFrame, stats: dict) -> list[dict]:
         losers = grp[grp["pnl_usd"] <= 0]
         gross_profit = winners["pnl_usd"].sum() if len(winners) > 0 else 0
         gross_loss = abs(losers["pnl_usd"].sum()) if len(losers) > 0 else 0
-        pf = gross_profit / gross_loss if gross_loss > 0 else float("inf")
+        pf = gross_profit / gross_loss if gross_loss > 0 else 9999.99
 
         rows.append({
             "year": int(year),

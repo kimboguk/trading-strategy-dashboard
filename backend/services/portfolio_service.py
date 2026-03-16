@@ -59,10 +59,14 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
             tdf["symbol"] = symbol
             all_trades.append(tdf)
 
-        # Collect equity
+        # Collect equity (resample to daily to avoid huge merges)
         if equity_df is not None and len(equity_df) > 0:
-            eq = equity_df[["equity"]].copy()
+            eq = equity_df[["time", "equity"]].copy()
+            eq = eq.set_index("time")
             eq.columns = [symbol]
+            # Resample to daily first to keep merge manageable
+            if len(eq) > 5000:
+                eq = eq.resample("1D").last().dropna()
             all_equities.append(eq)
 
     update_task(task_id, message="Aggregating results...")
@@ -119,12 +123,16 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     # --- Combined yearly ---
     combined_yearly = _combined_yearly_breakdown(merged_trades)
 
+    # --- Correlation matrix (daily returns, last 252 days) ---
+    correlation = _compute_correlation(all_equities)
+
     converted = {
         "stats": combined_stats,
         "trades": _df_to_records(merged_trades) if len(merged_trades) > 0 else [],
         "equity": equity_records,
         "yearly": combined_yearly,
         "per_symbol": per_symbol,  # stats dicts + yearly lists
+        "correlation": correlation,
     }
 
     # Free M1 cache memory after portfolio run
@@ -162,7 +170,7 @@ def _compute_combined_stats(
         win_rate = round(len(winners) / len(trades_df) * 100, 1) if len(trades_df) > 0 else 0
         gross_profit = winners["pnl_usd"].sum() if len(winners) > 0 else 0
         gross_loss = abs(losers["pnl_usd"].sum()) if len(losers) > 0 else 0
-        pf = round(gross_profit / gross_loss, 2) if gross_loss > 0 else float("inf")
+        pf = round(gross_profit / gross_loss, 2) if gross_loss > 0 else 9999.99
         total_pnl_usd = round(trades_df["pnl_usd"].sum(), 2)
         expectancy_usd = round(total_pnl_usd / len(trades_df), 2) if len(trades_df) > 0 else 0
         total_cost_pips = round(trades_df["cost_pips"].sum(), 1) if "cost_pips" in trades_df.columns else 0
@@ -219,6 +227,27 @@ def _compute_combined_stats(
     }
 
 
+def _compute_correlation(all_equities: list[pd.DataFrame]) -> dict:
+    """Compute pairwise correlation of daily returns (last 252 days)."""
+    if len(all_equities) < 2:
+        return {"symbols": [], "matrix": []}
+
+    combined = pd.concat(all_equities, axis=1).ffill().bfill()
+    # Last ~1 year of data
+    combined = combined.tail(252)
+    # Daily returns
+    returns = combined.pct_change().dropna()
+
+    if len(returns) < 10:
+        return {"symbols": [], "matrix": []}
+
+    corr = returns.corr()
+    symbols = list(corr.columns)
+    matrix = [[round(corr.loc[r, c], 3) for c in symbols] for r in symbols]
+
+    return {"symbols": symbols, "matrix": matrix}
+
+
 def _combined_yearly_breakdown(trades_df: pd.DataFrame) -> list[dict]:
     """Yearly breakdown across all symbols combined (USD only, no pips)."""
     if trades_df is None or len(trades_df) == 0:
@@ -234,7 +263,7 @@ def _combined_yearly_breakdown(trades_df: pd.DataFrame) -> list[dict]:
         losers = grp[grp["pnl_usd"] <= 0]
         gross_profit = winners["pnl_usd"].sum() if len(winners) > 0 else 0
         gross_loss = abs(losers["pnl_usd"].sum()) if len(losers) > 0 else 0
-        pf = gross_profit / gross_loss if gross_loss > 0 else float("inf")
+        pf = gross_profit / gross_loss if gross_loss > 0 else 9999.99
 
         rows.append({
             "year": int(year),

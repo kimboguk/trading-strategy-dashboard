@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type {
   PortfolioRequest,
@@ -10,12 +10,16 @@ import {
   runPortfolio,
   pollPortfolioUntilComplete,
   getPortfolioResult,
+  getSavedPortfolioResult,
 } from "@/lib/api";
+import type { PortfolioHistoryEntry } from "@/lib/api";
 import { usePortfolioStore } from "@/lib/store";
 import { PortfolioForm } from "@/components/portfolio/PortfolioForm";
+import { PortfolioHistoryPanel } from "@/components/portfolio/PortfolioHistoryPanel";
 import { YearlyBreakdown } from "@/components/backtest/YearlyBreakdown";
 import { SymbolYearly } from "@/components/portfolio/SymbolYearly";
 import { PortfolioTradesTable } from "@/components/portfolio/PortfolioTradesTable";
+import { CorrelationHeatmap } from "@/components/portfolio/CorrelationHeatmap";
 
 const EquityCurve = dynamic(
   () => import("@/components/charts/EquityCurve").then((m) => m.EquityCurve),
@@ -25,26 +29,32 @@ const EquityCurve = dynamic(
 export default function PortfolioPage() {
   const {
     taskId, loading, progressMsg, error, params: currentParams, result,
-    setRunning, setProgress, setComplete, setError, cancel,
+    setRunning, setProgress, setComplete, setError, setResult, cancel,
   } = usePortfolioStore();
 
   const abortRef = useRef<AbortController | null>(null);
+  const [historyKey, setHistoryKey] = useState(0);
 
-  // Resume polling if we navigate back while a task is running
+  // Resume polling or re-fetch result when navigating back
   useEffect(() => {
-    if (!taskId || !loading) return;
+    if (!taskId) return;
 
     const ac = new AbortController();
     abortRef.current = ac;
 
     (async () => {
       try {
-        await pollPortfolioUntilComplete(taskId, undefined, setProgress, 2000, ac.signal);
-        const res = await getPortfolioResult(taskId);
-        setComplete(res);
+        if (loading) {
+          // Still running — resume polling
+          await pollPortfolioUntilComplete(taskId, undefined, setProgress, 2000, ac.signal);
+        }
+        // Fetch (or re-fetch) result if not already in memory
+        if (!result) {
+          const res = await getPortfolioResult(taskId);
+          setComplete(res, taskId);
+        }
       } catch (err: any) {
         if (err.name === "AbortError") return;
-        // Stale task from previous session — reset instead of showing error
         if (err.message?.includes("404")) {
           cancel();
           return;
@@ -67,7 +77,10 @@ export default function PortfolioPage() {
 
       await pollPortfolioUntilComplete(task_id, undefined, setProgress, 2000, ac.signal);
       const res = await getPortfolioResult(task_id);
-      setComplete(res);
+      setComplete(res, task_id);
+
+      // DB save happens automatically on backend — just refresh history panel
+      setHistoryKey((k) => k + 1);
     } catch (err: any) {
       if (err.name === "AbortError") return;
       setError(err.message || "Portfolio backtest failed");
@@ -77,6 +90,25 @@ export default function PortfolioPage() {
   const handleCancel = () => {
     abortRef.current?.abort();
     cancel();
+  };
+
+  const handleHistorySelect = async (entry: PortfolioHistoryEntry) => {
+    try {
+      const res = await getSavedPortfolioResult(entry.id);
+      setResult(res, entry.params);
+    } catch {
+      // Fallback: show lightweight data from history list
+      setResult(
+        {
+          stats: entry.stats,
+          trades: [],
+          equity: [],
+          yearly: entry.yearly,
+          per_symbol: {},
+        },
+        entry.params,
+      );
+    }
   };
 
   const stats = result?.stats;
@@ -120,6 +152,7 @@ export default function PortfolioPage() {
             </p>
           )}
         </div>
+        <PortfolioHistoryPanel onSelect={handleHistorySelect} refreshKey={historyKey} />
       </div>
 
       {/* Right area: Results */}
@@ -179,6 +212,11 @@ export default function PortfolioPage() {
             {/* Equity Curve */}
             {result.equity.length > 0 && (
               <EquityCurve data={result.equity} height={250} />
+            )}
+
+            {/* Correlation Heatmap */}
+            {result.correlation && result.correlation.symbols.length >= 2 && (
+              <CorrelationHeatmap data={result.correlation} />
             )}
 
             {/* Stats + Combined Yearly side by side */}

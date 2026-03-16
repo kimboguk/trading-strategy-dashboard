@@ -35,7 +35,7 @@ interface BacktestState {
   // Actions
   setRunning: (taskId: string, params: BacktestRequest) => void;
   setProgress: (msg: string) => void;
-  setComplete: (result: BacktestResult) => void;
+  setComplete: (result: BacktestResult, taskId?: string) => void;
   setError: (error: string) => void;
   setResult: (result: BacktestResult, params: BacktestRequest) => void;
   cancel: () => void;
@@ -57,8 +57,8 @@ export const useBacktestStore = create<BacktestState>()(
 
       setProgress: (msg) => set({ progressMsg: msg }),
 
-      setComplete: (result) =>
-        set({ loading: false, result, taskId: null }),
+      setComplete: (result, taskId) =>
+        set({ loading: false, result, taskId: taskId ?? null }),
 
       setError: (error) =>
         set({ loading: false, error, taskId: null }),
@@ -75,11 +75,11 @@ export const useBacktestStore = create<BacktestState>()(
     {
       name: "backtest-store",
       storage: createJSONStorage(() => sessionStorage),
+      // Exclude result from persistence to avoid sessionStorage quota issues
       partialize: (state) => ({
         taskId: state.taskId,
         loading: state.loading,
         params: state.params,
-        result: state.result,
       }),
     }
   )
@@ -101,8 +101,9 @@ interface PortfolioState {
   // Actions
   setRunning: (taskId: string, params: PortfolioRequest) => void;
   setProgress: (msg: string) => void;
-  setComplete: (result: PortfolioResult) => void;
+  setComplete: (result: PortfolioResult, taskId?: string) => void;
   setError: (error: string) => void;
+  setResult: (result: PortfolioResult, params: PortfolioRequest) => void;
   cancel: () => void;
   reset: () => void;
 }
@@ -122,11 +123,14 @@ export const usePortfolioStore = create<PortfolioState>()(
 
       setProgress: (msg) => set({ progressMsg: msg }),
 
-      setComplete: (result) =>
-        set({ loading: false, result, taskId: null }),
+      setComplete: (result, taskId) =>
+        set({ loading: false, result, taskId: taskId ?? null }),
 
       setError: (error) =>
         set({ loading: false, error, taskId: null }),
+
+      setResult: (result, params) =>
+        set({ result, params, loading: false, taskId: null, error: null }),
 
       cancel: () =>
         set({ loading: false, taskId: null, progressMsg: "" }),
@@ -137,11 +141,12 @@ export const usePortfolioStore = create<PortfolioState>()(
     {
       name: "portfolio-store",
       storage: createJSONStorage(() => sessionStorage),
+      // Exclude result from persistence — it can be huge (trades, equity)
+      // and exceeds sessionStorage quota. Keep taskId so we can re-fetch.
       partialize: (state) => ({
         taskId: state.taskId,
         loading: state.loading,
         params: state.params,
-        result: state.result,
       }),
     }
   )

@@ -14,7 +14,7 @@ interface Props {
   height?: number;
 }
 
-export function EquityCurve({ data, height = 200 }: Props) {
+export function EquityCurve({ data, height = 250 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
@@ -48,7 +48,7 @@ export function EquityCurve({ data, height = 200 }: Props) {
     chartRef.current = chart;
 
     const lineSeries = chart.addLineSeries({
-      color: "#3b82f6",
+      color: "#22c55e",
       lineWidth: 2,
       title: "Equity",
       priceLineVisible: false,

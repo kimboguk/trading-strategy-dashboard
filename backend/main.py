@@ -12,12 +12,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from bridge.engine_adapter import init_strategy_paths
+from services.db import ensure_backtest_table, ensure_portfolio_table
 from routers import symbols, backtest, portfolio
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_strategy_paths()
+    ensure_backtest_table()
+    ensure_portfolio_table()
     yield
 
 

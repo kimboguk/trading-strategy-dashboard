@@ -40,10 +40,43 @@ def get_backtest_runner():
 
 
 def get_symbols_config():
-    """Return SYMBOLS dict from trend_grid config."""
+    """Return SYMBOLS dict from DB symbols table, merged with trend_grid config defaults."""
+    import psycopg2
+    from core.config import settings
+
+    # Load from DB
+    conn = psycopg2.connect(
+        host=settings.DB_HOST, port=settings.DB_PORT,
+        dbname=settings.DB_NAME, user=settings.DB_USER,
+        password=settings.DB_PASSWORD,
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT name, pip_size, spread_pips, commission_pips FROM symbols ORDER BY id")
+    rows = cur.fetchall()
+    conn.close()
+
+    # Also load config defaults for extra fields (quote_ccy, lot_size)
     init_strategy_paths()
-    from config import SYMBOLS
-    return SYMBOLS
+    from config import SYMBOLS as config_symbols
+
+    symbols = {}
+    for name, pip_size, spread_pips, commission_pips in rows:
+        entry = {
+            "pip_size": float(pip_size),
+            "spread_pips": float(spread_pips),
+            "commission_pips": float(commission_pips),
+        }
+        # Merge extra fields from config if available
+        if name in config_symbols:
+            for k in ("quote_ccy", "lot_size"):
+                if k in config_symbols[name]:
+                    entry[k] = config_symbols[name][k]
+        else:
+            # Infer quote_ccy from symbol name
+            entry["quote_ccy"] = "JPY" if name.endswith("JPY") or name.endswith("CHF") else "USD"
+        symbols[name] = entry
+
+    return symbols
 
 
 def get_data_loader():
