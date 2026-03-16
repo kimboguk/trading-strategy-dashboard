@@ -28,8 +28,11 @@ export function PortfolioHistoryPanel({ onSelect, refreshKey = 0 }: Props) {
     let cancelled = false;
     setLoading(true);
     getPortfolioHistory()
-      .then((data) => { if (!cancelled) setHistory(data); })
-      .catch(() => {})
+      .then((data) => {
+        console.log("[PortfolioHistory] fetched", data?.length, "entries");
+        if (!cancelled) setHistory(data);
+      })
+      .catch((err) => { console.error("[PortfolioHistory] fetch error:", err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [refreshKey]);

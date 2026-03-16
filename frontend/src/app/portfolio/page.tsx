@@ -56,7 +56,9 @@ export default function PortfolioPage() {
       } catch (err: any) {
         if (err.name === "AbortError") return;
         if (err.message?.includes("404")) {
+          // Stale task from previous session — clear and refresh history
           cancel();
+          setHistoryKey((k) => k + 1);
           return;
         }
         setError(err.message || "Portfolio backtest failed");

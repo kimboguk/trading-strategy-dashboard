@@ -142,7 +142,8 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     except Exception:
         pass
 
-    update_task(task_id, status="complete", progress=100, result=converted)
+    # Note: caller (_run_with_error_handling) marks task complete AFTER DB save
+    update_task(task_id, progress=100, message="Saving...", result=converted)
     return converted
 
 

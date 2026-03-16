@@ -40,9 +40,10 @@ router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 def _run_with_error_handling(task_id: str, result_id: str, params: dict):
     try:
         result = run_portfolio_task(task_id, params)
-        # Persist to DB
+        # Persist to DB BEFORE marking complete (so history panel sees it)
         sanitized = _sanitize_floats(result)
         save_portfolio_result(result_id, params, sanitized)
+        update_task(task_id, status="complete")
     except Exception as e:
         update_task(task_id, status="error", error=str(e))
 
