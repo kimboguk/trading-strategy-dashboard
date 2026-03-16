@@ -17,6 +17,8 @@ class BacktestRequest(BaseModel):
     filter_tfs: Optional[list[str]] = None  # e.g. ["D1", "H1"]
     alignment_mas: Optional[list[int]] = None  # e.g. [30, 60, 120]
     ribbon_periods: Optional[list[int]] = None  # e.g. [30, 60] — default: all 4
+    fast_period: Optional[int] = None   # golden_cross: fast MA period (default 50)
+    slow_period: Optional[int] = None   # golden_cross: slow MA period (default 200)
 
 
 class TradeRecord(BaseModel):

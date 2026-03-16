@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import type {
-  PortfolioRequest,
-  BacktestStats,
+import {
+  fmtPF,
+  pfColor,
+  type PortfolioRequest,
+  type BacktestStats,
 } from "@/lib/types";
 import {
   runPortfolio,
@@ -205,7 +207,7 @@ export default function PortfolioPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
               <SummaryCard label="Trades" value={`${stats.total_trades}`} sub={`L:${stats.long_trades} S:${stats.short_trades}`} />
               <SummaryCard label="Win Rate" value={`${stats.win_rate}%`} color={stats.win_rate >= 50 ? "var(--green)" : undefined} />
-              <SummaryCard label="Profit Factor" value={stats.profit_factor.toFixed(2)} color={stats.profit_factor >= 1.3 ? "var(--green)" : stats.profit_factor >= 1 ? "var(--text-primary)" : "var(--red)"} />
+              <SummaryCard label="Profit Factor" value={fmtPF(stats.profit_factor)} color={pfColor(stats.profit_factor)} />
               <SummaryCard label="Max Drawdown" value={`${stats.max_drawdown_pct.toFixed(1)}%`} color="var(--red)" />
               <SummaryCard label="Expectancy" value={`$${stats.expectancy_pips.toFixed(1)}`} color={stats.expectancy_pips >= 0 ? "var(--green)" : "var(--red)"} />
               <SummaryCard label="Annual Return" value={`${stats.annual_return_pct >= 0 ? "+" : ""}${stats.annual_return_pct.toFixed(1)}%`} color={stats.annual_return_pct >= 0 ? "var(--green)" : "var(--red)"} />
@@ -269,7 +271,7 @@ function PortfolioStatsTable({ stats }: { stats: BacktestStats }) {
       </h3>
       <StatRow label="Trades" value={`${stats.total_trades} (L:${stats.long_trades} / S:${stats.short_trades})`} />
       <StatRow label="Win Rate" value={`${stats.win_rate}%`} />
-      <StatRow label="Profit Factor" value={stats.profit_factor.toFixed(2)} color={stats.profit_factor >= 1.3 ? "var(--green)" : stats.profit_factor >= 1 ? "var(--text-primary)" : "var(--red)"} />
+      <StatRow label="Profit Factor" value={fmtPF(stats.profit_factor)} color={pfColor(stats.profit_factor)} />
       <StatRow label="Net P&L" value={`$${stats.total_pnl_usd.toLocaleString()}`} color={pnlColor} />
       <StatRow label="Expectancy" value={`$${stats.expectancy_pips.toFixed(1)}/trade`} />
       <StatRow label="Max Drawdown" value={`${stats.max_drawdown_pct.toFixed(1)}%`} color="var(--red)" />

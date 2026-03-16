@@ -1,20 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { BacktestRequest } from "@/lib/types";
+import { fmtPF, type BacktestRequest } from "@/lib/types";
 import { getBacktestHistory, deleteSavedBacktest } from "@/lib/api";
 import type { BacktestHistoryEntry } from "@/lib/api";
 
+const STRATEGY_TAG: Record<string, string> = {
+  trend_ribbon: "TR",
+  golden_cross: "XMA",
+};
+
 function formatLabel(params: BacktestRequest): string {
-  const parts = [params.symbol, params.timeframe, params.ma_type.toUpperCase()];
+  const tag = STRATEGY_TAG[params.strategy] || params.strategy;
+  const parts = [tag, params.symbol, params.timeframe, params.ma_type.toUpperCase()];
   if (params.filter_tfs?.length) parts.push(`+${params.filter_tfs.join("+")}`);
-  if (params.ribbon_periods && params.ribbon_periods.length < 4) {
-    parts.push(`R${[...params.ribbon_periods].sort((a, b) => a - b).join("|")}`);
-  } else {
-    parts.push("RT");
+  if (params.strategy === "trend_ribbon" || !params.strategy) {
+    if (params.ribbon_periods && params.ribbon_periods.length < 4) {
+      parts.push(`R${[...params.ribbon_periods].sort((a, b) => a - b).join("|")}`);
+    }
+    if (params.alignment_mas && params.alignment_mas.length >= 2) {
+      parts.push(params.alignment_mas.sort((a, b) => a - b).join("|"));
+    }
   }
-  if (params.alignment_mas && params.alignment_mas.length >= 2) {
-    parts.push(params.alignment_mas.sort((a, b) => a - b).join("|"));
+  if (params.strategy === "golden_cross") {
+    parts.push(`${params.fast_period || 60}/${params.slow_period || 240}`);
   }
   if (params.tp_pips) parts.push(`TP${params.tp_pips}`);
   if (params.sl_pips) parts.push(`SL${params.sl_pips}`);
@@ -87,7 +96,7 @@ export function HistoryPanel({ onSelect, refreshKey = 0 }: Props) {
                   <span style={{ color: (entry.stats?.total_pnl_pips ?? 0) >= 0 ? "var(--green)" : "var(--red)" }}>
                     {(entry.stats?.total_pnl_pips ?? 0) >= 0 ? "+" : ""}{(entry.stats?.total_pnl_pips ?? 0).toFixed(0)}p
                   </span>
-                  {" "}PF:{(entry.stats?.profit_factor ?? 0).toFixed(2)}
+                  {" "}PF:{fmtPF(entry.stats?.profit_factor ?? 0)}
                   {" "}{entry.stats?.total_trades ?? 0}t
                 </p>
               </div>

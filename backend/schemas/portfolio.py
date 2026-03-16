@@ -17,3 +17,5 @@ class PortfolioRequest(BaseModel):
     filter_tfs: Optional[list[str]] = None
     alignment_mas: Optional[list[int]] = None
     ribbon_periods: Optional[list[int]] = None
+    fast_period: Optional[int] = None
+    slow_period: Optional[int] = None

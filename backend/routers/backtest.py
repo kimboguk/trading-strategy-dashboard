@@ -20,13 +20,19 @@ from core.executor import executor
 
 
 def _sanitize_floats(obj):
-    """Replace inf/nan with JSON-safe values recursively."""
-    if isinstance(obj, float):
-        if math.isinf(obj):
-            return 9999.99 if obj > 0 else -9999.99
-        if math.isnan(obj):
+    """Replace inf/nan with JSON-safe values and convert numpy types recursively."""
+    import numpy as np
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating, float)):
+        val = float(obj)
+        if math.isinf(val):
+            return "+inf" if val > 0 else "-inf"
+        if math.isnan(val):
             return 0.0
-        return obj
+        return val
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
     if isinstance(obj, dict):
         return {k: _sanitize_floats(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -99,7 +105,7 @@ def get_backtest_stats(task_id: str):
         raise HTTPException(404, "Task not found")
     if task.status != "complete":
         raise HTTPException(400, f"Task status: {task.status}")
-    return task.result["stats"]
+    return JSONResponse(content=_sanitize_floats(task.result["stats"]))
 
 
 @router.get("/{task_id}/trades")
@@ -109,7 +115,7 @@ def get_backtest_trades(task_id: str):
         raise HTTPException(404, "Task not found")
     if task.status != "complete":
         raise HTTPException(400, f"Task status: {task.status}")
-    return task.result["trades"]
+    return JSONResponse(content=_sanitize_floats(task.result["trades"]))
 
 
 @router.get("/{task_id}/chart")
@@ -129,7 +135,7 @@ def get_backtest_equity(task_id: str):
         raise HTTPException(404, "Task not found")
     if task.status != "complete":
         raise HTTPException(400, f"Task status: {task.status}")
-    return task.result["equity"]
+    return JSONResponse(content=_sanitize_floats(task.result["equity"]))
 
 
 @router.get("/{task_id}/yearly")
@@ -139,4 +145,4 @@ def get_backtest_yearly(task_id: str):
         raise HTTPException(404, "Task not found")
     if task.status != "complete":
         raise HTTPException(400, f"Task status: {task.status}")
-    return task.result["yearly"]
+    return JSONResponse(content=_sanitize_floats(task.result["yearly"]))

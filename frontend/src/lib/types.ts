@@ -1,3 +1,15 @@
+// ── Helpers ──
+
+export function fmtPF(pf: number | string): string {
+  if (typeof pf === "string") return pf;
+  return pf.toFixed(2);
+}
+
+export function pfColor(pf: number | string): string {
+  if (typeof pf === "string") return "var(--green)";
+  return pf >= 1.3 ? "var(--green)" : pf >= 1 ? "var(--text-primary)" : "var(--red)";
+}
+
 // ── API Types ──
 
 export interface SymbolInfo {
@@ -25,6 +37,8 @@ export interface BacktestRequest {
   filter_tfs?: string[];
   alignment_mas?: number[];
   ribbon_periods?: number[];
+  fast_period?: number;
+  slow_period?: number;
 }
 
 export interface BacktestStats {
@@ -36,7 +50,7 @@ export interface BacktestStats {
   long_trades: number;
   short_trades: number;
   win_rate: number;
-  profit_factor: number;
+  profit_factor: number | string;
   total_pnl_pips: number;
   total_cost_pips: number;
   total_pnl_usd: number;
@@ -70,7 +84,7 @@ export interface YearlyRow {
   year: number;
   trades: number;
   win_rate: number;
-  profit_factor: number;
+  profit_factor: number | string;
   net_pnl_pips: number;
   net_pnl_usd: number;
   avg_pnl_pips: number;
@@ -130,6 +144,8 @@ export interface PortfolioRequest {
   filter_tfs?: string[];
   alignment_mas?: number[];
   ribbon_periods?: number[];
+  fast_period?: number;
+  slow_period?: number;
 }
 
 export interface PortfolioTradeRecord extends TradeRecord {

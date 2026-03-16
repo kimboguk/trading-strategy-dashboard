@@ -1,14 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { PortfolioRequest, BacktestStats, YearlyRow } from "@/lib/types";
+import { fmtPF, type PortfolioRequest, type BacktestStats, type YearlyRow } from "@/lib/types";
 import { getPortfolioHistory, deleteSavedPortfolio } from "@/lib/api";
 import type { PortfolioHistoryEntry } from "@/lib/api";
 
+const STRATEGY_TAG: Record<string, string> = {
+  trend_ribbon: "TR",
+  golden_cross: "XMA",
+};
+
 function formatPortfolioLabel(params: PortfolioRequest): string {
+  const tag = STRATEGY_TAG[params.strategy] || params.strategy;
   const n = params.symbols.length;
-  const parts = [`${n}sym`, params.timeframe, params.ma_type.toUpperCase()];
+  const parts = [tag, `${n}sym`, params.timeframe, params.ma_type.toUpperCase()];
   if (params.filter_tfs?.length) parts.push(`+${params.filter_tfs.join("+")}`);
+  if (params.strategy === "golden_cross") {
+    parts.push(`${params.fast_period || 60}/${params.slow_period || 240}`);
+  }
   if (params.tp_pips) parts.push(`TP${params.tp_pips}`);
   if (params.sl_pips) parts.push(`SL${params.sl_pips}`);
   return parts.join(" ");
@@ -83,7 +92,7 @@ export function PortfolioHistoryPanel({ onSelect, refreshKey = 0 }: Props) {
                   <span style={{ color: (entry.stats?.total_pnl_usd ?? 0) >= 0 ? "var(--green)" : "var(--red)" }}>
                     {(entry.stats?.total_pnl_usd ?? 0) >= 0 ? "+" : ""}${(entry.stats?.total_pnl_usd ?? 0).toFixed(0)}
                   </span>
-                  {" "}PF:{(entry.stats?.profit_factor ?? 0).toFixed(2)}
+                  {" "}PF:{fmtPF(entry.stats?.profit_factor ?? 0)}
                   {" "}{entry.stats?.total_trades ?? 0}t
                 </p>
               </div>

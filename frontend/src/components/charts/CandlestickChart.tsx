@@ -14,14 +14,22 @@ const MA_COLORS: Record<string, string> = {
   ma_60: "#FF9800",
   ma_120: "#4CAF50",
   ma_240: "#F44336",
+  ma_50: "#2196F3",
+  ma_200: "#F44336",
 };
 
-const MA_LABELS: Record<string, string> = {
-  ma_30: "EMA 30",
-  ma_60: "EMA 60",
-  ma_120: "EMA 120",
-  ma_240: "EMA 240",
-};
+// Fallback color palette for unknown MA keys
+const FALLBACK_COLORS = ["#2196F3", "#FF9800", "#4CAF50", "#F44336", "#9C27B0", "#00BCD4"];
+
+function getMaColor(key: string, index: number): string {
+  return MA_COLORS[key] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+}
+
+function getMaLabel(key: string): string {
+  // Extract period number from "ma_50" -> "MA 50"
+  const match = key.match(/^ma_(\d+)$/);
+  return match ? `MA ${match[1]}` : key;
+}
 
 interface Props {
   data: ChartData | null;
@@ -89,16 +97,17 @@ export function CandlestickChart({ data, height = 500 }: Props) {
         );
       }
 
-      for (const [key, points] of Object.entries(data.ma_lines)) {
-        if (points.length === 0) continue;
+      const maEntries = Object.entries(data.ma_lines);
+      maEntries.forEach(([key, points], idx) => {
+        if (points.length === 0) return;
         const lineSeries = chart.addLineSeries({
-          color: MA_COLORS[key] || "#888",
+          color: getMaColor(key, idx),
           lineWidth: 1,
-          title: MA_LABELS[key] || key,
+          title: getMaLabel(key),
           priceLineVisible: false,
         });
         lineSeries.setData(points as any);
-      }
+      });
     }
 
     chart.timeScale().fitContent();

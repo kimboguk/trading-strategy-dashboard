@@ -1,6 +1,6 @@
 "use client";
 
-import type { YearlyRow } from "@/lib/types";
+import { fmtPF, pfColor, type YearlyRow } from "@/lib/types";
 
 interface Props {
   data: YearlyRow[];
@@ -11,7 +11,7 @@ export function YearlyBreakdown({ data, label }: Props) {
   const downloadCsv = () => {
     const header = "Year,Trades,Win%,PF,Net Pips,Net USD,Avg Pips";
     const rows = data.map((r) =>
-      [r.year, r.trades, r.win_rate, r.profit_factor.toFixed(2), r.net_pnl_pips.toFixed(1), r.net_pnl_usd.toFixed(0), r.avg_pnl_pips.toFixed(1)].join(",")
+      [r.year, r.trades, r.win_rate, fmtPF(r.profit_factor), r.net_pnl_pips.toFixed(1), r.net_pnl_usd.toFixed(0), r.avg_pnl_pips.toFixed(1)].join(",")
     );
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -64,8 +64,8 @@ export function YearlyBreakdown({ data, label }: Props) {
                 <td className={tdClass}>{r.year}</td>
                 <td className={tdClass}>{r.trades}</td>
                 <td className={tdClass}>{r.win_rate}%</td>
-                <td className={tdClass} style={{ color: r.profit_factor >= 1 ? "var(--green)" : "var(--red)" }}>
-                  {r.profit_factor.toFixed(2)}
+                <td className={tdClass} style={{ color: pfColor(r.profit_factor) }}>
+                  {fmtPF(r.profit_factor)}
                 </td>
                 <td className={tdClass} style={{ color: r.net_pnl_pips >= 0 ? "var(--green)" : "var(--red)" }}>
                   {r.net_pnl_pips >= 0 ? "+" : ""}{r.net_pnl_pips.toFixed(1)}

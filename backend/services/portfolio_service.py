@@ -18,7 +18,8 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     started_at = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     t0 = time.monotonic()
 
-    run_backtest = get_backtest_runner()
+    strategy = params.get("strategy", "trend_ribbon")
+    run_backtest = get_backtest_runner(strategy)
     symbols = params["symbols"]
     n = len(symbols)
 
@@ -41,6 +42,8 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
             filter_tfs=params.get("filter_tfs"),
             alignment_mas=params.get("alignment_mas"),
             ribbon_periods=params.get("ribbon_periods"),
+            fast_period=params.get("fast_period"),
+            slow_period=params.get("slow_period"),
             verbose=False,
             _keep_cache=True,
         )
@@ -171,7 +174,7 @@ def _compute_combined_stats(
         win_rate = round(len(winners) / len(trades_df) * 100, 1) if len(trades_df) > 0 else 0
         gross_profit = winners["pnl_usd"].sum() if len(winners) > 0 else 0
         gross_loss = abs(losers["pnl_usd"].sum()) if len(losers) > 0 else 0
-        pf = round(gross_profit / gross_loss, 2) if gross_loss > 0 else 9999.99
+        pf = round(gross_profit / gross_loss, 2) if gross_loss > 0 else float("inf")
         total_pnl_usd = round(trades_df["pnl_usd"].sum(), 2)
         expectancy_usd = round(total_pnl_usd / len(trades_df), 2) if len(trades_df) > 0 else 0
         total_cost_pips = round(trades_df["cost_pips"].sum(), 1) if "cost_pips" in trades_df.columns else 0
@@ -264,7 +267,7 @@ def _combined_yearly_breakdown(trades_df: pd.DataFrame) -> list[dict]:
         losers = grp[grp["pnl_usd"] <= 0]
         gross_profit = winners["pnl_usd"].sum() if len(winners) > 0 else 0
         gross_loss = abs(losers["pnl_usd"].sum()) if len(losers) > 0 else 0
-        pf = gross_profit / gross_loss if gross_loss > 0 else 9999.99
+        pf = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
         rows.append({
             "year": int(year),

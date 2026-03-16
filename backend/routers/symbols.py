@@ -46,4 +46,10 @@ def list_strategies():
             "description": "EMA grid breakout trend-following",
             "ma_types": ["ema", "sma", "vwma"],
         },
+        {
+            "id": "golden_cross",
+            "name": "MA Crossover",
+            "description": "Two MA crossover (golden/dead cross)",
+            "ma_types": ["ema", "sma"],
+        },
     ]

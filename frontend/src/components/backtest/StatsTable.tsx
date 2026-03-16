@@ -1,6 +1,6 @@
 "use client";
 
-import type { BacktestStats } from "@/lib/types";
+import { fmtPF, pfColor, type BacktestStats } from "@/lib/types";
 
 interface Props {
   stats: BacktestStats;
@@ -30,7 +30,7 @@ export function StatsTable({ stats }: Props) {
       </h3>
       <StatRow label="Trades" value={`${stats.total_trades} (L:${stats.long_trades} / S:${stats.short_trades})`} />
       <StatRow label="Win Rate" value={`${stats.win_rate}%`} />
-      <StatRow label="Profit Factor" value={stats.profit_factor.toFixed(2)} color={stats.profit_factor >= 1.3 ? "var(--green)" : stats.profit_factor >= 1 ? "var(--text-primary)" : "var(--red)"} />
+      <StatRow label="Profit Factor" value={fmtPF(stats.profit_factor)} color={pfColor(stats.profit_factor)} />
       <StatRow label="Net P&L" value={`${stats.total_pnl_pips >= 0 ? "+" : ""}${stats.total_pnl_pips.toFixed(1)} pips ($${stats.total_pnl_usd.toFixed(0)})`} color={pnlColor} />
       <StatRow label="Expectancy" value={`${stats.expectancy_pips.toFixed(1)} pips/trade`} />
       <StatRow label="Max Drawdown" value={`${stats.max_drawdown_pct.toFixed(1)}%`} color="var(--red)" />

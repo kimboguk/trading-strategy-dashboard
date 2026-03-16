@@ -19,24 +19,47 @@ def init_strategy_paths():
     if _initialized:
         return
 
+    common = str(settings.STRATEGY_ROOT / "common")
     trend_grid = str(settings.STRATEGY_ROOT / "trend_grid")
     statarb = str(settings.STRATEGY_ROOT / "statarb")
 
-    # trend_grid first (its config.py, backtest.py take priority)
-    # statarb second (data_loader.py)
+    # common first (trade_engine.py), then statarb (data_loader.py), then trend_grid
     # Do NOT add ICT — it has conflicting module names
-    for p in [statarb, trend_grid]:
+    for p in [statarb, common, trend_grid]:
         if p not in sys.path:
             sys.path.insert(0, p)
 
     _initialized = True
 
 
-def get_backtest_runner():
-    """Return the run_backtest function from trend_grid."""
+def get_backtest_runner(strategy: str = "trend_ribbon"):
+    """Return the run_backtest function for the given strategy.
+
+    Uses importlib to load strategy-specific modules without polluting sys.path
+    with conflicting module names (each strategy has its own strategy.py, config.py).
+    """
+    import importlib.util
+
     init_strategy_paths()
-    from backtest import run_backtest
-    return run_backtest
+
+    if strategy in ("trend_ribbon", "trend_grid"):
+        # Default: use sys.path-based import (backward compatible)
+        from backtest import run_backtest
+        return run_backtest
+
+    # For other strategies, use importlib to load from their directory
+    strategy_dir = settings.STRATEGY_ROOT / strategy
+    backtest_path = strategy_dir / "backtest.py"
+
+    if not backtest_path.exists():
+        raise ValueError(f"Unknown strategy: {strategy}")
+
+    spec = importlib.util.spec_from_file_location(
+        f"{strategy}_backtest", str(backtest_path)
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.run_backtest
 
 
 def get_symbols_config():

@@ -15,7 +15,8 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
     started_at = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     t0 = time.monotonic()
 
-    run_backtest = get_backtest_runner()
+    strategy = params.get("strategy", "trend_ribbon")
+    run_backtest = get_backtest_runner(strategy)
 
     def _on_progress(msg):
         if isinstance(msg, int):
@@ -34,6 +35,8 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
         filter_tfs=params.get("filter_tfs"),
         alignment_mas=params.get("alignment_mas"),
         ribbon_periods=params.get("ribbon_periods"),
+        fast_period=params.get("fast_period"),
+        slow_period=params.get("slow_period"),
         verbose=False,
         progress_callback=_on_progress,
     )
@@ -125,9 +128,10 @@ def _grid_to_chart(grid: pd.DataFrame) -> dict:
         )
     ]
 
-    # MA lines — vectorized, skip NaN
+    # MA lines — dynamically detect all ma_* columns
     ma_lines = {}
-    for col in ["ma_30", "ma_60", "ma_120", "ma_240"]:
+    ma_cols = [col for col in grid.columns if col.startswith("ma_")]
+    for col in ma_cols:
         if col in grid.columns:
             mask = grid[col].notna()
             ts_vals = [timestamps[i] for i in mask.values.nonzero()[0]]
@@ -175,7 +179,7 @@ def _yearly_breakdown(trades_df: pd.DataFrame, stats: dict) -> list[dict]:
         losers = grp[grp["pnl_usd"] <= 0]
         gross_profit = winners["pnl_usd"].sum() if len(winners) > 0 else 0
         gross_loss = abs(losers["pnl_usd"].sum()) if len(losers) > 0 else 0
-        pf = gross_profit / gross_loss if gross_loss > 0 else 9999.99
+        pf = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
         rows.append({
             "year": int(year),

@@ -30,17 +30,21 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
   const [filterTfs, setFilterTfs] = useState<string[]>([]);
   const [alignmentMas, setAlignmentMas] = useState<number[]>([]);
   const [ribbonPeriods, setRibbonPeriods] = useState<number[]>([30, 60, 120, 240]);
+  const [fastPeriod, setFastPeriod] = useState("60");
+  const [slowPeriod, setSlowPeriod] = useState("240");
+
+  const isTrendRibbon = strategy === "trend_ribbon";
+  const isGoldenCross = strategy === "golden_cross";
 
   useEffect(() => {
     getSymbols().then((s) => {
       setSymbols(s);
-      setSelectedSymbols(Object.keys(s)); // default: all selected
+      setSelectedSymbols(Object.keys(s));
     });
     getTimeframes().then(setTimeframes);
     getStrategies().then(setStrategies);
   }, []);
 
-  // Compute common date range across selected symbols
   useEffect(() => {
     if (selectedSymbols.length === 0) return;
     Promise.all(selectedSymbols.map((s) => getSymbolDateRange(s)))
@@ -101,8 +105,16 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
     if (tpPips) params.tp_pips = parseFloat(tpPips);
     if (slPips) params.sl_pips = parseFloat(slPips);
     if (filterTfs.length > 0) params.filter_tfs = filterTfs;
-    if (alignmentMas.length >= 2) params.alignment_mas = alignmentMas;
-    if (ribbonPeriods.length < 4) params.ribbon_periods = ribbonPeriods;
+    if (isTrendRibbon) {
+      if (alignmentMas.length >= 2) params.alignment_mas = alignmentMas;
+      if (ribbonPeriods.length < 4) params.ribbon_periods = ribbonPeriods;
+    }
+    if (isGoldenCross) {
+      const fp = parseInt(fastPeriod);
+      const sp = parseInt(slowPeriod);
+      if (fp > 0) params.fast_period = fp;
+      if (sp > 0) params.slow_period = sp;
+    }
     onSubmit(params);
   };
 
@@ -182,27 +194,45 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
         </select>
       </div>
 
-      {/* Ribbon MAs */}
-      <div>
-        <label className={labelClass}>Ribbon MAs</label>
-        <div className="flex gap-2">
-          {MA_OPTIONS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => toggleRibbon(p)}
-              className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
-              style={{
-                background: ribbonPeriods.includes(p) ? "var(--accent)" : "var(--bg-tertiary)",
-                borderColor: ribbonPeriods.includes(p) ? "var(--accent)" : "var(--border)",
-                color: ribbonPeriods.includes(p) ? "#fff" : "var(--text-secondary)",
-              }}
-            >
-              {p}
-            </button>
-          ))}
+      {/* Golden Cross: Fast/Slow Period */}
+      {isGoldenCross && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelClass}>Fast Period</label>
+            <input type="number" value={fastPeriod} onChange={(e) => setFastPeriod(e.target.value)}
+              min="1" className={inputClass} style={inputStyle} />
+          </div>
+          <div>
+            <label className={labelClass}>Slow Period</label>
+            <input type="number" value={slowPeriod} onChange={(e) => setSlowPeriod(e.target.value)}
+              min="1" className={inputClass} style={inputStyle} />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Ribbon MAs (trend_ribbon only) */}
+      {isTrendRibbon && (
+        <div>
+          <label className={labelClass}>Ribbon MAs</label>
+          <div className="flex gap-2">
+            {MA_OPTIONS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => toggleRibbon(p)}
+                className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
+                style={{
+                  background: ribbonPeriods.includes(p) ? "var(--accent)" : "var(--bg-tertiary)",
+                  borderColor: ribbonPeriods.includes(p) ? "var(--accent)" : "var(--border)",
+                  color: ribbonPeriods.includes(p) ? "#fff" : "var(--text-secondary)",
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Date Range */}
       <div>
@@ -265,30 +295,32 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       </div>
       )}
 
-      {/* MA Alignment Filter */}
-      <div>
-        <label className={labelClass}>MA Alignment Filter</label>
-        <div className="flex gap-2">
-          {MA_OPTIONS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => toggleAlignment(p)}
-              className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
-              style={{
-                background: alignmentMas.includes(p) ? "var(--accent)" : "var(--bg-tertiary)",
-                borderColor: alignmentMas.includes(p) ? "var(--accent)" : "var(--border)",
-                color: alignmentMas.includes(p) ? "#fff" : "var(--text-secondary)",
-              }}
-            >
-              {p}
-            </button>
-          ))}
+      {/* MA Alignment Filter (trend_ribbon only) */}
+      {isTrendRibbon && (
+        <div>
+          <label className={labelClass}>MA Alignment Filter</label>
+          <div className="flex gap-2">
+            {MA_OPTIONS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => toggleAlignment(p)}
+                className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
+                style={{
+                  background: alignmentMas.includes(p) ? "var(--accent)" : "var(--bg-tertiary)",
+                  borderColor: alignmentMas.includes(p) ? "var(--accent)" : "var(--border)",
+                  color: alignmentMas.includes(p) ? "#fff" : "var(--text-secondary)",
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          {alignmentMas.length === 1 && (
+            <p className="text-xs mt-1" style={{ color: "var(--yellow, #f59e0b)" }}>Select 2+ MAs</p>
+          )}
         </div>
-        {alignmentMas.length === 1 && (
-          <p className="text-xs mt-1" style={{ color: "var(--yellow, #f59e0b)" }}>Select 2+ MAs</p>
-        )}
-      </div>
+      )}
 
       {/* Submit */}
       <button
