@@ -26,6 +26,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     # Collect per-symbol results
     all_trades = []
     all_equities = []
+    all_close_prices = []  # for correlation (underlying asset returns)
     per_symbol = {}
 
     for i, symbol in enumerate(symbols):
@@ -51,6 +52,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
         trades_df = result["trades"]
         equity_df = result["equity"]
         stats = result["stats"]
+        grid = result.get("grid")
 
         # Per-symbol yearly & stats
         yearly = _yearly_breakdown(trades_df, stats)
@@ -71,6 +73,14 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
             if len(eq) > 5000:
                 eq = eq.resample("1D").last().dropna()
             all_equities.append(eq)
+
+        # Collect close prices for correlation
+        if grid is not None and len(grid) > 0:
+            cp = grid[["close"]].copy()
+            cp.columns = [symbol]
+            if len(cp) > 5000:
+                cp = cp.resample("1D").last().dropna()
+            all_close_prices.append(cp)
 
     update_task(task_id, message="Aggregating results...")
 
@@ -117,8 +127,15 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
 
     # --- Combined stats ---
     elapsed_sec = round(time.monotonic() - t0, 1)
+    # Use equity time range for data_period (not trade dates)
+    eq_data_days = 0
+    if all_equities:
+        eq_start = combined_eq.index[0]
+        eq_end = combined_eq.index[-1]
+        eq_data_days = (eq_end - eq_start).days
     combined_stats = _compute_combined_stats(
-        merged_trades, per_symbol, total_initial, final_equity, max_dd_pct
+        merged_trades, per_symbol, total_initial, final_equity, max_dd_pct,
+        data_days_override=eq_data_days,
     )
     combined_stats["elapsed_sec"] = elapsed_sec
     combined_stats["started_at"] = started_at
@@ -126,8 +143,8 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     # --- Combined yearly ---
     combined_yearly = _combined_yearly_breakdown(merged_trades)
 
-    # --- Correlation matrix (daily returns, last 252 days) ---
-    correlation = _compute_correlation(all_equities)
+    # --- Correlation matrix (daily returns of underlying prices, last 252 days) ---
+    correlation = _compute_correlation(all_close_prices if all_close_prices else all_equities)
 
     converted = {
         "stats": combined_stats,
@@ -156,6 +173,7 @@ def _compute_combined_stats(
     total_initial: float,
     final_equity: float,
     max_dd_pct: float,
+    data_days_override: int = 0,
 ) -> dict:
     """Compute aggregated portfolio stats."""
     total_trades = 0
@@ -188,12 +206,6 @@ def _compute_combined_stats(
         except Exception:
             avg_holding = ""
 
-        # Data period
-        try:
-            all_times = pd.to_datetime(trades_df["exit_time"])
-            data_days = (all_times.max() - all_times.min()).days
-        except Exception:
-            data_days = 0
     else:
         win_rate = 0
         pf = 0
@@ -201,7 +213,9 @@ def _compute_combined_stats(
         expectancy_usd = 0
         total_cost_pips = 0
         avg_holding = ""
-        data_days = 0
+
+    # Use equity-based data period (covers full backtest range, not just trade dates)
+    data_days = data_days_override if data_days_override > 0 else 0
 
     # Annual return
     years = data_days / 365.25 if data_days > 0 else 1

@@ -13,9 +13,11 @@ export function pfColor(pf: number | string): string {
 // ── API Types ──
 
 export interface SymbolInfo {
+  category: "forex" | "index" | "crypto";
   pip_size: number;
   spread_pips: number;
   commission_pips: number;
+  quote_ccy: string;
 }
 
 export interface StrategyInfo {

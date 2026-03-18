@@ -104,6 +104,7 @@ interface PortfolioState {
   setComplete: (result: PortfolioResult, taskId?: string) => void;
   setError: (error: string) => void;
   setResult: (result: PortfolioResult, params: PortfolioRequest) => void;
+  viewHistory: (result: PortfolioResult, params: PortfolioRequest) => void;
   cancel: () => void;
   reset: () => void;
 }
@@ -131,6 +132,10 @@ export const usePortfolioStore = create<PortfolioState>()(
 
       setResult: (result, params) =>
         set({ result, params, loading: false, taskId: null, error: null }),
+
+      // View history without clearing the active taskId
+      viewHistory: (result, params) =>
+        set({ result, params, loading: false, error: null }),
 
       cancel: () =>
         set({ loading: false, taskId: null, progressMsg: "" }),

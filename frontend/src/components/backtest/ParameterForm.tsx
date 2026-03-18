@@ -133,9 +133,17 @@ export function ParameterForm({ onSubmit, loading }: Props) {
       <div>
         <label className={labelClass}>Symbol</label>
         <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={inputClass} style={inputStyle}>
-          {Object.keys(symbols).map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+          {(["forex", "index", "crypto"] as const).map((cat) => {
+            const catSymbols = Object.keys(symbols).filter((s) => (symbols[s].category || "forex") === cat);
+            if (catSymbols.length === 0) return null;
+            return (
+              <optgroup key={cat} label={cat.toUpperCase()}>
+                {catSymbols.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </optgroup>
+            );
+          })}
         </select>
       </div>
 
@@ -223,16 +231,22 @@ export function ParameterForm({ onSubmit, loading }: Props) {
 
       {/* TP / SL */}
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className={labelClass}>TP (pips)</label>
-          <input type="number" value={tpPips} onChange={(e) => setTpPips(e.target.value)}
-            placeholder="-" className={inputClass} style={inputStyle} />
-        </div>
-        <div>
-          <label className={labelClass}>SL (pips)</label>
-          <input type="number" value={slPips} onChange={(e) => setSlPips(e.target.value)}
-            placeholder="-" className={inputClass} style={inputStyle} />
-        </div>
+        {(() => {
+          const cat = symbols[symbol]?.category || "forex";
+          const unit = cat === "index" ? "ticks" : cat === "crypto" ? "$" : "pips";
+          return (<>
+            <div>
+              <label className={labelClass}>TP ({unit})</label>
+              <input type="number" value={tpPips} onChange={(e) => setTpPips(e.target.value)}
+                placeholder="-" className={inputClass} style={inputStyle} />
+            </div>
+            <div>
+              <label className={labelClass}>SL ({unit})</label>
+              <input type="number" value={slPips} onChange={(e) => setSlPips(e.target.value)}
+                placeholder="-" className={inputClass} style={inputStyle} />
+            </div>
+          </>);
+        })()}
       </div>
 
       {/* Higher TF Filter - only show when lower TFs are selected */}

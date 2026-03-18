@@ -74,7 +74,7 @@ def get_symbols_config():
         password=settings.DB_PASSWORD,
     )
     cur = conn.cursor()
-    cur.execute("SELECT name, pip_size, spread_pips, commission_pips FROM symbols ORDER BY id")
+    cur.execute("SELECT name, pip_size, spread_pips, commission_pips, category, point_value, quote_ccy FROM symbols ORDER BY id")
     rows = cur.fetchall()
     conn.close()
 
@@ -83,20 +83,21 @@ def get_symbols_config():
     from config import SYMBOLS as config_symbols
 
     symbols = {}
-    for name, pip_size, spread_pips, commission_pips in rows:
+    for name, pip_size, spread_pips, commission_pips, category, point_value, quote_ccy in rows:
         entry = {
             "pip_size": float(pip_size),
             "spread_pips": float(spread_pips),
             "commission_pips": float(commission_pips),
+            "category": category or "forex",
+            "quote_ccy": quote_ccy or "USD",
         }
+        if point_value is not None:
+            entry["point_value"] = float(point_value)
         # Merge extra fields from config if available
         if name in config_symbols:
-            for k in ("quote_ccy", "lot_size"):
+            for k in ("lot_size", "fee_rate", "point_value"):
                 if k in config_symbols[name]:
                     entry[k] = config_symbols[name][k]
-        else:
-            # Infer quote_ccy from symbol name
-            entry["quote_ccy"] = "JPY" if name.endswith("JPY") or name.endswith("CHF") else "USD"
         symbols[name] = entry
 
     return symbols

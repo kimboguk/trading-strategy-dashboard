@@ -31,7 +31,7 @@ const EquityCurve = dynamic(
 export default function PortfolioPage() {
   const {
     taskId, loading, progressMsg, error, params: currentParams, result,
-    setRunning, setProgress, setComplete, setError, setResult, cancel,
+    setRunning, setProgress, setComplete, setError, setResult, viewHistory, cancel,
   } = usePortfolioStore();
 
   const abortRef = useRef<AbortController | null>(null);
@@ -99,10 +99,10 @@ export default function PortfolioPage() {
   const handleHistorySelect = async (entry: PortfolioHistoryEntry) => {
     try {
       const res = await getSavedPortfolioResult(entry.id);
-      setResult(res, entry.params);
+      viewHistory(res, entry.params);
     } catch {
       // Fallback: show lightweight data from history list
-      setResult(
+      viewHistory(
         {
           stats: entry.stats,
           trades: [],

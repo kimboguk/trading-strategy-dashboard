@@ -65,13 +65,13 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
   }, [timeframe]);
 
   const toggleSymbol = (s: string) => {
-    setSelectedSymbols((prev) => {
-      if (prev.includes(s) && prev.length <= 1) return prev;
-      return prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s];
-    });
+    setSelectedSymbols((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
   };
 
   const selectAllSymbols = () => setSelectedSymbols(Object.keys(symbols));
+  const clearAllSymbols = () => setSelectedSymbols([]);
 
   const toggleFilter = (tf: string) => {
     setFilterTfs((prev) =>
@@ -147,32 +147,51 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="text-xs font-medium">Symbols</label>
-          <button
-            type="button"
-            onClick={selectAllSymbols}
-            className="text-xs px-1.5 py-0.5 rounded"
-            style={{ color: "var(--accent)" }}
-          >
-            All
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {Object.keys(symbols).map((s) => (
+          <div className="flex gap-2">
             <button
-              key={s}
               type="button"
-              onClick={() => toggleSymbol(s)}
-              className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
-              style={{
-                background: selectedSymbols.includes(s) ? "var(--accent)" : "var(--bg-tertiary)",
-                borderColor: selectedSymbols.includes(s) ? "var(--accent)" : "var(--border)",
-                color: selectedSymbols.includes(s) ? "#fff" : "var(--text-secondary)",
-              }}
+              onClick={selectAllSymbols}
+              className="text-xs px-1.5 py-0.5 rounded"
+              style={{ color: "var(--accent)" }}
             >
-              {s}
+              All
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={clearAllSymbols}
+              className="text-xs px-1.5 py-0.5 rounded"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Clear
+            </button>
+          </div>
         </div>
+        {(["forex", "index", "crypto"] as const).map((cat) => {
+          const catSymbols = Object.keys(symbols).filter((s) => (symbols[s].category || "forex") === cat);
+          if (catSymbols.length === 0) return null;
+          return (
+            <div key={cat} className="mb-2">
+              <span className="text-xs uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>{cat}</span>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {catSymbols.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleSymbol(s)}
+                    className="px-2.5 py-1 rounded text-xs font-medium transition-colors border"
+                    style={{
+                      background: selectedSymbols.includes(s) ? "var(--accent)" : "var(--bg-tertiary)",
+                      borderColor: selectedSymbols.includes(s) ? "var(--accent)" : "var(--border)",
+                      color: selectedSymbols.includes(s) ? "#fff" : "var(--text-secondary)",
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Timeframe */}

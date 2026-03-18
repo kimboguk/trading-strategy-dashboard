@@ -12,9 +12,11 @@ def list_symbols():
     symbols = get_symbols_config()
     return {
         name: {
+            "category": cfg.get("category", "forex"),
             "pip_size": cfg["pip_size"],
             "spread_pips": cfg["spread_pips"],
             "commission_pips": cfg["commission_pips"],
+            "quote_ccy": cfg.get("quote_ccy", "USD"),
         }
         for name, cfg in symbols.items()
     }
