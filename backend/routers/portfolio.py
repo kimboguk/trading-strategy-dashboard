@@ -56,7 +56,11 @@ def _run_with_error_handling(task_id: str, result_id: str, params: dict):
 
 @router.post("/run")
 def run_portfolio(req: PortfolioRequest):
-    if not req.symbols:
+    if not req.allocations and not req.symbols:
+        raise HTTPException(400, "Provide allocations or symbols")
+    if req.allocations is not None and len(req.allocations) == 0:
+        raise HTTPException(400, "At least one allocation is required")
+    if not req.allocations and req.symbols is not None and len(req.symbols) == 0:
         raise HTTPException(400, "At least one symbol is required")
     task = create_task()
     params = req.model_dump()

@@ -5,9 +5,22 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+class SlotAllocation(BaseModel):
+    symbol: str
+    strategy: str
+    overrides: Optional[dict] = None
+
+
 class PortfolioRequest(BaseModel):
-    strategy: str = "trend_ribbon"
-    symbols: list[str]  # ["EURUSD", "USDJPY", ...]
+    # New multi-strategy fields
+    allocations: Optional[list[SlotAllocation]] = None
+    capital_per_slot: Optional[float] = 10_000
+    defaults: Optional[dict] = None            # {timeframe, ma_type, start, end, ...}
+    strategy_defaults: Optional[dict] = None   # {"trend_ribbon": {...}, "golden_cross": {...}}
+
+    # Legacy fields (backward compat)
+    strategy: Optional[str] = None
+    symbols: Optional[list[str]] = None
     timeframe: str = "D1"
     ma_type: str = "ema"
     start: Optional[str] = None

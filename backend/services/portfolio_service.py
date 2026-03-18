@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Portfolio service: runs backtest per symbol, aggregates results."""
+"""Portfolio service: runs backtest per slot (symbol×strategy), aggregates results."""
 
 import time
+from collections import Counter
+
 import numpy as np
 import pandas as pd
 from datetime import datetime, timezone, timedelta
@@ -11,6 +13,89 @@ from services.task_manager import update_task
 from services.backtest_service import _df_to_records, _yearly_breakdown, MAX_CHART_BARS
 
 
+# ── Strategy tag mapping ──────────────────────────────────────
+
+STRATEGY_TAG = {
+    "trend_ribbon": "TR",
+    "golden_cross": "XMA",
+}
+
+
+def _slot_key(symbol: str, strategy: str, need_disambig: bool) -> str:
+    """Generate per_symbol key. Add strategy tag only when symbol has multiple strategies."""
+    if need_disambig:
+        tag = STRATEGY_TAG.get(strategy, strategy[:3].upper())
+        return f"{symbol}({tag})"
+    return symbol
+
+
+# ── Parameter normalization ───────────────────────────────────
+
+def _normalize_params(params: dict):
+    """Convert legacy or new format into (slots, capital_per_slot, defaults, strategy_defaults)."""
+    if params.get("allocations"):
+        # New format
+        slots = params["allocations"]
+        capital = params.get("capital_per_slot", 10_000)
+        defaults = params.get("defaults") or {}
+        strat_defaults = params.get("strategy_defaults") or {}
+        # Fallback to top-level legacy fields if defaults are sparse
+        defaults.setdefault("timeframe", params.get("timeframe", "D1"))
+        defaults.setdefault("ma_type", params.get("ma_type", "ema"))
+        if params.get("start"):
+            defaults.setdefault("start", params["start"])
+        if params.get("end"):
+            defaults.setdefault("end", params["end"])
+        return slots, capital, defaults, strat_defaults
+    else:
+        # Legacy format: single strategy × all symbols
+        strategy = params.get("strategy", "trend_ribbon")
+        symbols = params.get("symbols", [])
+        slots = [{"symbol": s, "strategy": strategy} for s in symbols]
+        capital = params.get("capital_per_slot", 10_000)
+        defaults = {
+            "timeframe": params.get("timeframe", "D1"),
+            "ma_type": params.get("ma_type", "ema"),
+            "start": params.get("start"),
+            "end": params.get("end"),
+            "tp_pips": params.get("tp_pips"),
+            "sl_pips": params.get("sl_pips"),
+            "filter_tfs": params.get("filter_tfs"),
+        }
+        strat_defaults = {
+            strategy: {
+                "ribbon_periods": params.get("ribbon_periods"),
+                "alignment_mas": params.get("alignment_mas"),
+                "fast_period": params.get("fast_period"),
+                "slow_period": params.get("slow_period"),
+            }
+        }
+        return slots, capital, defaults, strat_defaults
+
+
+def _build_slot_params(slot: dict, defaults: dict, strategy_defaults: dict) -> dict:
+    """Merge: defaults -> strategy_defaults[slot.strategy] -> slot.overrides."""
+    strategy = slot["strategy"]
+    merged = {}
+    # Layer 1: global defaults
+    for k, v in defaults.items():
+        if v is not None:
+            merged[k] = v
+    # Layer 2: strategy defaults
+    sd = strategy_defaults.get(strategy) or {}
+    for k, v in sd.items():
+        if v is not None:
+            merged[k] = v
+    # Layer 3: per-slot overrides
+    overrides = slot.get("overrides") or {}
+    for k, v in overrides.items():
+        if v is not None:
+            merged[k] = v
+    return merged
+
+
+# ── Main portfolio task ───────────────────────────────────────
+
 def run_portfolio_task(task_id: str, params: dict) -> dict:
     """Run portfolio backtest (called from thread pool)."""
     update_task(task_id, status="running", message="Starting portfolio...")
@@ -18,33 +103,46 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     started_at = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     t0 = time.monotonic()
 
-    strategy = params.get("strategy", "trend_ribbon")
-    run_backtest = get_backtest_runner(strategy)
-    symbols = params["symbols"]
-    n = len(symbols)
+    # Normalize params (legacy compat)
+    slots, capital_per_slot, defaults, strategy_defaults = _normalize_params(params)
+    n = len(slots)
 
-    # Collect per-symbol results
+    # Determine which symbols need disambiguation
+    symbol_count = Counter(s["symbol"] if isinstance(s, dict) else s.symbol for s in slots)
+
+    # Collect per-slot results
     all_trades = []
     all_equities = []
     all_close_prices = []  # for correlation (underlying asset returns)
     per_symbol = {}
 
-    for i, symbol in enumerate(symbols):
-        update_task(task_id, message=f"{symbol} ({i+1}/{n})...")
+    for i, slot in enumerate(slots):
+        symbol = slot["symbol"] if isinstance(slot, dict) else slot.symbol
+        strategy = slot["strategy"] if isinstance(slot, dict) else slot.strategy
+        need_disambig = symbol_count[symbol] > 1
+        key = _slot_key(symbol, strategy, need_disambig)
+
+        update_task(task_id, message=f"{key} ({i+1}/{n})...")
+
+        run_backtest = get_backtest_runner(strategy)
+        slot_params = _build_slot_params(
+            slot if isinstance(slot, dict) else slot.model_dump(),
+            defaults, strategy_defaults,
+        )
 
         result = run_backtest(
             symbol=symbol,
-            timeframe=params["timeframe"],
-            ma_type=params.get("ma_type", "ema"),
-            start=params.get("start"),
-            end=params.get("end"),
-            tp_pips=params.get("tp_pips"),
-            sl_pips=params.get("sl_pips"),
-            filter_tfs=params.get("filter_tfs"),
-            alignment_mas=params.get("alignment_mas"),
-            ribbon_periods=params.get("ribbon_periods"),
-            fast_period=params.get("fast_period"),
-            slow_period=params.get("slow_period"),
+            timeframe=slot_params.get("timeframe", "D1"),
+            ma_type=slot_params.get("ma_type", "ema"),
+            start=slot_params.get("start"),
+            end=slot_params.get("end"),
+            tp_pips=slot_params.get("tp_pips"),
+            sl_pips=slot_params.get("sl_pips"),
+            filter_tfs=slot_params.get("filter_tfs"),
+            alignment_mas=slot_params.get("alignment_mas"),
+            ribbon_periods=slot_params.get("ribbon_periods"),
+            fast_period=slot_params.get("fast_period"),
+            slow_period=slot_params.get("slow_period"),
             verbose=False,
             _keep_cache=True,
         )
@@ -54,27 +152,26 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
         stats = result["stats"]
         grid = result.get("grid")
 
-        # Per-symbol yearly & stats
+        # Per-slot yearly & stats
         yearly = _yearly_breakdown(trades_df, stats)
-        per_symbol[symbol] = {"stats": stats, "yearly": yearly}
+        per_symbol[key] = {"stats": stats, "yearly": yearly}
 
-        # Tag trades with symbol
+        # Tag trades with slot key
         if trades_df is not None and len(trades_df) > 0:
             tdf = trades_df.copy()
-            tdf["symbol"] = symbol
+            tdf["symbol"] = key
             all_trades.append(tdf)
 
         # Collect equity (resample to daily to avoid huge merges)
         if equity_df is not None and len(equity_df) > 0:
             eq = equity_df[["time", "equity"]].copy()
             eq = eq.set_index("time")
-            eq.columns = [symbol]
-            # Resample to daily first to keep merge manageable
+            eq.columns = [key]
             if len(eq) > 5000:
                 eq = eq.resample("1D").last().dropna()
             all_equities.append(eq)
 
-        # Collect close prices for correlation
+        # Collect close prices for correlation (raw symbol, not key — dedup later)
         if grid is not None and len(grid) > 0:
             cp = grid[["close"]].copy()
             cp.columns = [symbol]
@@ -92,13 +189,12 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
         merged_trades = pd.DataFrame()
 
     # --- Merge equity curves ---
-    initial_capital = 10_000  # per symbol
+    initial_capital = capital_per_slot
     total_initial = initial_capital * n
 
     if all_equities:
         combined_eq = pd.concat(all_equities, axis=1)
         combined_eq = combined_eq.ffill()
-        # Fill NaN at start with initial_capital (symbol hadn't started yet)
         for col in combined_eq.columns:
             combined_eq[col] = combined_eq[col].fillna(initial_capital)
         combined_eq["portfolio"] = combined_eq.sum(axis=1)
@@ -127,7 +223,6 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
 
     # --- Combined stats ---
     elapsed_sec = round(time.monotonic() - t0, 1)
-    # Use equity time range for data_period (not trade dates)
     eq_data_days = 0
     if all_equities:
         eq_start = combined_eq.index[0]
@@ -143,7 +238,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     # --- Combined yearly ---
     combined_yearly = _combined_yearly_breakdown(merged_trades)
 
-    # --- Correlation matrix (daily returns of underlying prices, last 252 days) ---
+    # --- Correlation matrix (daily returns of underlying prices) ---
     correlation = _compute_correlation(all_close_prices if all_close_prices else all_equities)
 
     converted = {
@@ -151,7 +246,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
         "trades": _df_to_records(merged_trades) if len(merged_trades) > 0 else [],
         "equity": equity_records,
         "yearly": combined_yearly,
-        "per_symbol": per_symbol,  # stats dicts + yearly lists
+        "per_symbol": per_symbol,
         "correlation": correlation,
     }
 
@@ -162,10 +257,11 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     except Exception:
         pass
 
-    # Note: caller (_run_with_error_handling) marks task complete AFTER DB save
     update_task(task_id, progress=100, message="Saving...", result=converted)
     return converted
 
+
+# ── Statistics ────────────────────────────────────────────────
 
 def _compute_combined_stats(
     trades_df: pd.DataFrame,
@@ -197,7 +293,6 @@ def _compute_combined_stats(
         expectancy_usd = round(total_pnl_usd / len(trades_df), 2) if len(trades_df) > 0 else 0
         total_cost_pips = round(trades_df["cost_pips"].sum(), 1) if "cost_pips" in trades_df.columns else 0
 
-        # Avg holding time
         try:
             entry_times = pd.to_datetime(trades_df["entry_time"])
             exit_times = pd.to_datetime(trades_df["exit_time"])
@@ -214,10 +309,7 @@ def _compute_combined_stats(
         total_cost_pips = 0
         avg_holding = ""
 
-    # Use equity-based data period (covers full backtest range, not just trade dates)
     data_days = data_days_override if data_days_override > 0 else 0
-
-    # Annual return
     years = data_days / 365.25 if data_days > 0 else 1
     annual_return = round(((final_equity / total_initial) ** (1 / years) - 1) * 100, 1) if total_initial > 0 else 0
 
@@ -231,12 +323,12 @@ def _compute_combined_stats(
         "short_trades": short_trades,
         "win_rate": win_rate,
         "profit_factor": pf,
-        "total_pnl_pips": 0,  # meaningless across symbols
+        "total_pnl_pips": 0,
         "total_cost_pips": total_cost_pips,
         "total_pnl_usd": total_pnl_usd,
         "avg_win_usd": round(gross_profit / len(winners), 2) if trades_df is not None and len(trades_df) > 0 and len(winners) > 0 else 0,
         "avg_loss_usd": round(-gross_loss / len(losers), 2) if trades_df is not None and len(trades_df) > 0 and len(losers) > 0 else 0,
-        "expectancy_pips": expectancy_usd,  # repurpose as expectancy USD for portfolio
+        "expectancy_pips": expectancy_usd,
         "max_drawdown_pct": round(max_dd_pct, 1),
         "annual_return_pct": annual_return,
         "avg_holding": avg_holding,
@@ -245,15 +337,20 @@ def _compute_combined_stats(
     }
 
 
-def _compute_correlation(all_equities: list[pd.DataFrame]) -> dict:
-    """Compute pairwise correlation of daily returns (last 252 days)."""
-    if len(all_equities) < 2:
+def _compute_correlation(all_price_series: list[pd.DataFrame]) -> dict:
+    """Compute pairwise correlation of daily returns (last 252 days).
+    Deduplicates columns by symbol name for same-symbol multi-strategy slots.
+    """
+    if len(all_price_series) < 2:
         return {"symbols": [], "matrix": []}
 
-    combined = pd.concat(all_equities, axis=1).ffill().bfill()
-    # Last ~1 year of data
+    combined = pd.concat(all_price_series, axis=1).ffill().bfill()
+    # Deduplicate columns (same symbol in multiple strategies)
+    combined = combined.loc[:, ~combined.columns.duplicated()]
+    if combined.shape[1] < 2:
+        return {"symbols": [], "matrix": []}
+
     combined = combined.tail(252)
-    # Daily returns
     returns = combined.pct_change().dropna()
 
     if len(returns) < 10:
@@ -267,7 +364,7 @@ def _compute_correlation(all_equities: list[pd.DataFrame]) -> dict:
 
 
 def _combined_yearly_breakdown(trades_df: pd.DataFrame) -> list[dict]:
-    """Yearly breakdown across all symbols combined (USD only, no pips)."""
+    """Yearly breakdown across all symbols combined."""
     if trades_df is None or len(trades_df) == 0:
         return []
 
@@ -288,9 +385,9 @@ def _combined_yearly_breakdown(trades_df: pd.DataFrame) -> list[dict]:
             "trades": n,
             "win_rate": round(len(winners) / n * 100, 1) if n > 0 else 0,
             "profit_factor": round(pf, 2),
-            "net_pnl_pips": 0,  # meaningless across symbols
+            "net_pnl_pips": round(grp["net_pnl_pips"].sum(), 1),
             "net_pnl_usd": round(grp["pnl_usd"].sum(), 2),
-            "avg_pnl_pips": 0,
+            "avg_pnl_pips": round(grp["net_pnl_pips"].mean(), 1),
         })
 
     return rows

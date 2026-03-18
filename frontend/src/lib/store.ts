@@ -133,9 +133,8 @@ export const usePortfolioStore = create<PortfolioState>()(
       setResult: (result, params) =>
         set({ result, params, loading: false, taskId: null, error: null }),
 
-      // View history without clearing the active taskId
       viewHistory: (result, params) =>
-        set({ result, params, loading: false, error: null }),
+        set({ result, params, loading: false, error: null, taskId: null }),
 
       cancel: () =>
         set({ loading: false, taskId: null, progressMsg: "" }),

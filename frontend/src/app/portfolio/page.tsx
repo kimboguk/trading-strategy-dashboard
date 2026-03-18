@@ -116,7 +116,11 @@ export default function PortfolioPage() {
   };
 
   const stats = result?.stats;
-  const symbols = currentParams?.symbols || [];
+  // Derive slot keys from result (works for both new and legacy formats)
+  const slotKeys = result?.per_symbol ? Object.keys(result.per_symbol) : [];
+  const slotCount = slotKeys.length;
+  const tfLabel = currentParams?.defaults?.timeframe || currentParams?.timeframe || "";
+  const maLabel = (currentParams?.defaults?.ma_type || currentParams?.ma_type || "").toUpperCase();
 
   return (
     <div className="flex gap-6 h-full">
@@ -177,14 +181,14 @@ export default function PortfolioPage() {
             {/* Header */}
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-lg font-bold">
-                Portfolio ({symbols.length} symbols)
+                Portfolio ({slotCount} slot{slotCount !== 1 ? "s" : ""})
               </h2>
-              {currentParams && (
+              {tfLabel && (
                 <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--bg-tertiary)", color: "var(--text-secondary)" }}>
-                  {currentParams.timeframe} {currentParams.ma_type.toUpperCase()}
+                  {tfLabel} {maLabel}
                 </span>
               )}
-              {symbols.map((s) => (
+              {slotKeys.map((s) => (
                 <span key={s} className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(59,130,246,0.2)", color: "var(--accent)" }}>
                   {s}
                 </span>
@@ -230,8 +234,8 @@ export default function PortfolioPage() {
             </div>
 
             {/* Per-symbol yearly */}
-            {Object.keys(result.per_symbol).length > 1 && (
-              <SymbolYearly perSymbol={result.per_symbol} symbols={symbols} />
+            {slotKeys.length > 1 && (
+              <SymbolYearly perSymbol={result.per_symbol} symbols={slotKeys} />
             )}
 
             {/* Trades */}

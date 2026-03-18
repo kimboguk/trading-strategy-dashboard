@@ -134,11 +134,37 @@ export interface EquityPoint {
 
 // ── Portfolio Types ──
 
-export interface PortfolioRequest {
+export interface SlotAllocation {
+  symbol: string;
   strategy: string;
-  symbols: string[];
+  overrides?: Record<string, any>;
+}
+
+export interface PortfolioDefaults {
   timeframe: string;
   ma_type: string;
+  start?: string;
+  end?: string;
+  tp_pips?: number;
+  sl_pips?: number;
+  filter_tfs?: string[];
+}
+
+export interface PortfolioRequest {
+  // Optional user-defined run name
+  run_name?: string;
+
+  // New multi-strategy fields
+  allocations?: SlotAllocation[];
+  capital_per_slot?: number;
+  defaults?: PortfolioDefaults;
+  strategy_defaults?: Record<string, Record<string, any>>;
+
+  // Legacy fields (backward compat)
+  strategy?: string;
+  symbols?: string[];
+  timeframe?: string;
+  ma_type?: string;
   start?: string;
   end?: string;
   tp_pips?: number;

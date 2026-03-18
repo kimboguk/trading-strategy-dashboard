@@ -11,9 +11,40 @@ const STRATEGY_TAG: Record<string, string> = {
 };
 
 function formatPortfolioLabel(params: PortfolioRequest): string {
-  const tag = STRATEGY_TAG[params.strategy] || params.strategy;
-  const n = params.symbols.length;
-  const parts = [tag, `${n}sym`, params.timeframe, params.ma_type.toUpperCase()];
+  // User-defined name takes priority
+  if (params.run_name) return params.run_name;
+
+  if (params.allocations && params.allocations.length > 0) {
+    // New multi-strategy format
+    const strategyIds = [...new Set(params.allocations.map((a) => a.strategy))];
+    const sd = params.strategy_defaults || {};
+    const n = params.allocations.length;
+
+    // Per-strategy tag with TF: "TR(M30)+XMA(D1)"
+    const tagParts = strategyIds.map((s) => {
+      const tag = STRATEGY_TAG[s] || s;
+      const tf = sd[s]?.timeframe || params.defaults?.timeframe || "";
+      const ma = (sd[s]?.ma_type || params.defaults?.ma_type || "").toUpperCase();
+      let info = tf;
+      if (ma) info += ` ${ma}`;
+      if (s === "golden_cross" && sd[s]) {
+        info += ` ${sd[s].fast_period || 60}/${sd[s].slow_period || 240}`;
+      }
+      const ftfs = sd[s]?.filter_tfs as string[] | undefined;
+      if (ftfs?.length) info += ` +${ftfs.join("+")}`;
+      return `${tag}(${info})`;
+    });
+    const parts = [tagParts.join("+"), `${n}slots`];
+    const tp = params.defaults?.tp_pips;
+    const sl = params.defaults?.sl_pips;
+    if (tp) parts.push(`TP${tp}`);
+    if (sl) parts.push(`SL${sl}`);
+    return parts.join(" ");
+  }
+  // Legacy single-strategy format
+  const tag = STRATEGY_TAG[params.strategy!] || params.strategy || "?";
+  const n = params.symbols?.length || 0;
+  const parts = [tag, `${n}sym`, params.timeframe || "", (params.ma_type || "").toUpperCase()];
   if (params.filter_tfs?.length) parts.push(`+${params.filter_tfs.join("+")}`);
   if (params.strategy === "golden_cross") {
     parts.push(`${params.fast_period || 60}/${params.slow_period || 240}`);
