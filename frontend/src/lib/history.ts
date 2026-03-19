@@ -93,5 +93,6 @@ export function formatLabel(params: BacktestRequest): string {
   }
   if (params.tp_pips) parts.push(`TP${params.tp_pips}`);
   if (params.sl_pips) parts.push(`SL${params.sl_pips}`);
+  if (params.compound) parts.push("[C]");
   return parts.join(" ");
 }
