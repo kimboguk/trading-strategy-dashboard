@@ -41,6 +41,7 @@ export interface BacktestRequest {
   ribbon_periods?: number[];
   fast_period?: number;
   slow_period?: number;
+  compound?: boolean;
 }
 
 export interface BacktestStats {

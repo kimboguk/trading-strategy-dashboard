@@ -37,6 +37,7 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
         ribbon_periods=params.get("ribbon_periods"),
         fast_period=params.get("fast_period"),
         slow_period=params.get("slow_period"),
+        compound=params.get("compound", False),
         verbose=False,
         progress_callback=_on_progress,
     )

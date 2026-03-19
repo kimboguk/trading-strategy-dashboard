@@ -33,6 +33,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
   const [ribbonPeriods, setRibbonPeriods] = useState<number[]>([30, 60, 120, 240]);
   const [fastPeriod, setFastPeriod] = useState("60");
   const [slowPeriod, setSlowPeriod] = useState("240");
+  const [compound, setCompound] = useState(false);
 
   const isTrendRibbon = strategy === "trend_ribbon";
   const isGoldenCross = strategy === "golden_cross";
@@ -101,6 +102,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
       if (fp > 0) params.fast_period = fp;
       if (sp > 0) params.slow_period = sp;
     }
+    if (compound) params.compound = true;
     onSubmit(params);
   };
 
@@ -300,6 +302,12 @@ export function ParameterForm({ onSubmit, loading }: Props) {
           )}
         </div>
       )}
+
+      {/* Compound mode */}
+      <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+        <input type="checkbox" checked={compound} onChange={(e) => setCompound(e.target.checked)} />
+        Compound (position sizing proportional to equity)
+      </label>
 
       {/* Submit */}
       <button

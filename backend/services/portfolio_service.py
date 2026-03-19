@@ -311,7 +311,8 @@ def _compute_combined_stats(
 
     data_days = data_days_override if data_days_override > 0 else 0
     years = data_days / 365.25 if data_days > 0 else 1
-    annual_return = round(((final_equity / total_initial) ** (1 / years) - 1) * 100, 1) if total_initial > 0 else 0
+    # Simple annualised return for fixed-lot backtest
+    annual_return = round((final_equity / total_initial - 1) / years * 100, 1) if total_initial > 0 and years > 0 else 0
 
     # Annualised Sharpe Ratio & Volatility (daily portfolio returns)
     sharpe_ratio = 0.0
