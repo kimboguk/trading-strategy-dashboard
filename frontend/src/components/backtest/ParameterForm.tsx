@@ -163,6 +163,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
         <select value={maType} onChange={(e) => setMaType(e.target.value)} className={inputClass} style={inputStyle}>
           <option value="ema">EMA</option>
           <option value="sma">SMA</option>
+          <option value="wma">WMA</option>
         </select>
       </div>
 

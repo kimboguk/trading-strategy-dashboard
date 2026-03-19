@@ -310,6 +310,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
               className={inputClass} style={inputStyle}>
               <option value="ema">EMA</option>
               <option value="sma">SMA</option>
+              <option value="wma">WMA</option>
             </select>
           </div>
         </div>
