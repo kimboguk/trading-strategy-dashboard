@@ -58,6 +58,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
   const [tpPips, setTpPips] = useState("");
   const [slPips, setSlPips] = useState("");
+  const [compound, setCompound] = useState(false);
 
   // Per-strategy params
   const [stratParams, setStratParams] = useState<Record<string, StrategyParams>>({
@@ -268,6 +269,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
         ...(slPips && { sl_pips: parseFloat(slPips) }),
       },
       strategy_defaults: sd,
+      ...(compound && { compound: true }),
     };
     onSubmit(params);
   };
@@ -524,6 +526,12 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
 
       {/* Strategy-specific sections (TF, MA, filters, params) */}
       {activeStrategies.map((stratId) => renderStrategySection(stratId))}
+
+      {/* Compound mode */}
+      <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+        <input type="checkbox" checked={compound} onChange={(e) => setCompound(e.target.checked)} />
+        Compound (position sizing proportional to equity)
+      </label>
 
       {/* Submit */}
       <button type="submit" disabled={loading || slotCount === 0}

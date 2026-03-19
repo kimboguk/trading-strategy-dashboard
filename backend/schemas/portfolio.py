@@ -18,6 +18,8 @@ class PortfolioRequest(BaseModel):
     defaults: Optional[dict] = None            # {timeframe, ma_type, start, end, ...}
     strategy_defaults: Optional[dict] = None   # {"trend_ribbon": {...}, "golden_cross": {...}}
 
+    compound: bool = False
+
     # Legacy fields (backward compat)
     strategy: Optional[str] = None
     symbols: Optional[list[str]] = None

@@ -105,6 +105,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
 
     # Normalize params (legacy compat)
     slots, capital_per_slot, defaults, strategy_defaults = _normalize_params(params)
+    compound = params.get("compound", False)
     n = len(slots)
 
     # Determine which symbols need disambiguation
@@ -145,6 +146,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
             slow_period=slot_params.get("slow_period"),
             verbose=False,
             _keep_cache=True,
+            compound=compound,
         )
 
         trades_df = result["trades"]
@@ -231,6 +233,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
     combined_stats = _compute_combined_stats(
         merged_trades, per_symbol, total_initial, final_equity, max_dd_pct,
         data_days_override=eq_data_days,
+        compound=compound,
     )
     combined_stats["elapsed_sec"] = elapsed_sec
     combined_stats["started_at"] = started_at
@@ -270,6 +273,7 @@ def _compute_combined_stats(
     final_equity: float,
     max_dd_pct: float,
     data_days_override: int = 0,
+    compound: bool = False,
 ) -> dict:
     """Compute aggregated portfolio stats."""
     total_trades = 0
@@ -311,8 +315,10 @@ def _compute_combined_stats(
 
     data_days = data_days_override if data_days_override > 0 else 0
     years = data_days / 365.25 if data_days > 0 else 1
-    # Simple annualised return for fixed-lot backtest
-    annual_return = round((final_equity / total_initial - 1) / years * 100, 1) if total_initial > 0 and years > 0 else 0
+    if compound and total_initial > 0 and years > 0:
+        annual_return = round(((final_equity / total_initial) ** (1 / years) - 1) * 100, 1)
+    else:
+        annual_return = round((final_equity / total_initial - 1) / years * 100, 1) if total_initial > 0 and years > 0 else 0
 
     # Annualised Sharpe Ratio & Volatility (daily portfolio returns)
     sharpe_ratio = 0.0
