@@ -61,6 +61,8 @@ export interface BacktestStats {
   expectancy_pips: number;
   max_drawdown_pct: number;
   annual_return_pct: number;
+  sharpe_ratio: number;
+  annual_volatility_pct: number;
   avg_holding: string;
   initial_capital: number;
   final_equity: number;

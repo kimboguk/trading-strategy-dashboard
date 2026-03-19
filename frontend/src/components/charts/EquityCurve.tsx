@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import {
   createChart,
   type IChartApi,
@@ -9,14 +9,42 @@ import {
 } from "lightweight-charts";
 import type { EquityPoint } from "@/lib/types";
 
+/** Resample equity points to daily (last value per date, closed-trade basis). */
+function toDailyEquity(data: EquityPoint[]): { date: string; equity: number }[] {
+  const byDate = new Map<string, number>();
+  for (const d of data) {
+    const date = new Date(d.time).toISOString().slice(0, 10); // YYYY-MM-DD
+    byDate.set(date, d.equity); // last value per day wins
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, equity]) => ({ date, equity: Math.round(equity * 100) / 100 }));
+}
+
 interface Props {
   data: EquityPoint[];
   height?: number;
+  label?: string;
 }
 
-export function EquityCurve({ data, height = 250 }: Props) {
+export function EquityCurve({ data, height = 250, label }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+
+  const dailyEquity = useMemo(() => toDailyEquity(data), [data]);
+
+  const downloadDailyCsv = () => {
+    const header = "Date,Equity";
+    const rows = dailyEquity.map((d) => `${d.date},${d.equity.toFixed(2)}`);
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(label || "equity_daily").replace(/[^a-zA-Z0-9_\-|+. ]/g, "")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (!containerRef.current || data.length === 0) return;
@@ -86,10 +114,22 @@ export function EquityCurve({ data, height = 250 }: Props) {
   }, [data, height]);
 
   return (
-    <div
-      ref={containerRef}
-      className="rounded-lg overflow-hidden"
-      style={{ border: "1px solid var(--border)" }}
-    />
+    <div>
+      <div className="flex justify-end mb-1">
+        <button
+          onClick={downloadDailyCsv}
+          className="text-xs px-2 py-0.5 rounded"
+          style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+          title="Download daily equity as CSV"
+        >
+          CSV
+        </button>
+      </div>
+      <div
+        ref={containerRef}
+        className="rounded-lg overflow-hidden"
+        style={{ border: "1px solid var(--border)" }}
+      />
+    </div>
   );
 }

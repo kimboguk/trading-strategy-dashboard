@@ -215,11 +215,13 @@ export default function PortfolioPage() {
               <SummaryCard label="Max Drawdown" value={`${stats.max_drawdown_pct.toFixed(1)}%`} color="var(--red)" />
               <SummaryCard label="Expectancy" value={`$${stats.expectancy_pips.toFixed(1)}`} color={stats.expectancy_pips >= 0 ? "var(--green)" : "var(--red)"} />
               <SummaryCard label="Annual Return" value={`${stats.annual_return_pct >= 0 ? "+" : ""}${stats.annual_return_pct.toFixed(1)}%`} color={stats.annual_return_pct >= 0 ? "var(--green)" : "var(--red)"} />
+              <SummaryCard label="Sharpe Ratio" value={`${(stats.sharpe_ratio ?? 0).toFixed(2)}`} color={(stats.sharpe_ratio ?? 0) >= 1 ? "var(--green)" : undefined} />
+              <SummaryCard label="Volatility" value={`${(stats.annual_volatility_pct ?? 0).toFixed(1)}%`} />
             </div>
 
             {/* Equity Curve */}
             {result.equity.length > 0 && (
-              <EquityCurve data={result.equity} height={250} />
+              <EquityCurve data={result.equity} height={250} label={`equity_daily_portfolio_${tfLabel}_${maLabel}`} />
             )}
 
             {/* Correlation Heatmap */}

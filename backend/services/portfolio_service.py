@@ -313,6 +313,23 @@ def _compute_combined_stats(
     years = data_days / 365.25 if data_days > 0 else 1
     annual_return = round(((final_equity / total_initial) ** (1 / years) - 1) * 100, 1) if total_initial > 0 else 0
 
+    # Annualised Sharpe Ratio & Volatility (daily portfolio returns)
+    sharpe_ratio = 0.0
+    annual_volatility = 0.0
+    if trades_df is not None and len(trades_df) > 0:
+        try:
+            # Build daily equity from trade PnL
+            tdf = trades_df.copy()
+            tdf["exit_date"] = pd.to_datetime(tdf["exit_time"]).dt.date
+            daily_pnl = tdf.groupby("exit_date")["pnl_usd"].sum()
+            daily_equity = total_initial + daily_pnl.cumsum()
+            daily_returns = daily_equity.pct_change().dropna()
+            if len(daily_returns) > 1 and daily_returns.std() > 0:
+                sharpe_ratio = round(daily_returns.mean() / daily_returns.std() * np.sqrt(252), 2)
+                annual_volatility = round(daily_returns.std() * np.sqrt(252) * 100, 2)
+        except Exception:
+            pass
+
     return {
         "symbol": "Portfolio",
         "timeframe": "",
@@ -331,6 +348,8 @@ def _compute_combined_stats(
         "expectancy_pips": expectancy_usd,
         "max_drawdown_pct": round(max_dd_pct, 1),
         "annual_return_pct": annual_return,
+        "sharpe_ratio": sharpe_ratio,
+        "annual_volatility_pct": annual_volatility,
         "avg_holding": avg_holding,
         "initial_capital": total_initial,
         "final_equity": round(final_equity, 2),
