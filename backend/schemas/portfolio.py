@@ -19,6 +19,8 @@ class PortfolioRequest(BaseModel):
     strategy_defaults: Optional[dict] = None   # {"trend_ribbon": {...}, "golden_cross": {...}}
 
     compound: bool = False
+    use_kalman: bool = False
+    kalman_qr_ratio: float = 0.1
 
     # Legacy fields (backward compat)
     strategy: Optional[str] = None
