@@ -42,6 +42,8 @@ export interface BacktestRequest {
   fast_period?: number;
   slow_period?: number;
   compound?: boolean;
+  use_kalman?: boolean;
+  kalman_qr_ratio?: number;
 }
 
 export interface BacktestStats {

@@ -57,9 +57,10 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
   const [end, setEnd] = useState("");
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
   const [tpPips, setTpPips] = useState("");
-  const [slPips, setSlPips] = useState("");
+  const [slPips, setSlPips] = useState("200");
   const [compound, setCompound] = useState(false);
   const [useKalman, setUseKalman] = useState(false);
+  const [kalmanQR, setKalmanQR] = useState("0.1");
 
   // Per-strategy params
   const [stratParams, setStratParams] = useState<Record<string, StrategyParams>>({
@@ -271,7 +272,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       },
       strategy_defaults: sd,
       ...(compound && { compound: true }),
-      ...(useKalman && { use_kalman: true }),
+      ...(useKalman && { use_kalman: true, kalman_qr_ratio: parseFloat(kalmanQR) || 0.1 }),
     };
     onSubmit(params);
   };
@@ -536,10 +537,27 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       </label>
 
       {/* Kalman filter */}
-      <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-        <input type="checkbox" checked={useKalman} onChange={(e) => setUseKalman(e.target.checked)} />
-        Kalman Filter (noise reduction, Q/R=0.1)
-      </label>
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+          <input type="checkbox" checked={useKalman} onChange={(e) => setUseKalman(e.target.checked)} />
+          Kalman Filter
+        </label>
+        {useKalman && (
+          <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            Q/R:
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              max="1"
+              value={kalmanQR}
+              onChange={(e) => setKalmanQR(e.target.value)}
+              className="w-16 px-1 py-0.5 rounded text-xs"
+              style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+            />
+          </label>
+        )}
+      </div>
 
       {/* Submit */}
       <button type="submit" disabled={loading || slotCount === 0}

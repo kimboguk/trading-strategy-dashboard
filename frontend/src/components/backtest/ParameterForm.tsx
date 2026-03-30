@@ -27,7 +27,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
   const [end, setEnd] = useState("");
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
   const [tpPips, setTpPips] = useState("");
-  const [slPips, setSlPips] = useState("");
+  const [slPips, setSlPips] = useState("200");
   const [filterTfs, setFilterTfs] = useState<string[]>([]);
   const [alignmentMas, setAlignmentMas] = useState<number[]>([]);
   const [ribbonPeriods, setRibbonPeriods] = useState<number[]>([30, 60, 120, 240]);
@@ -35,6 +35,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
   const [slowPeriod, setSlowPeriod] = useState("240");
   const [compound, setCompound] = useState(false);
   const [useKalman, setUseKalman] = useState(false);
+  const [kalmanQR, setKalmanQR] = useState("0.1");
 
   const isTrendRibbon = strategy === "trend_ribbon";
   const isGoldenCross = strategy === "golden_cross";
@@ -104,7 +105,11 @@ export function ParameterForm({ onSubmit, loading }: Props) {
       if (sp > 0) params.slow_period = sp;
     }
     if (compound) params.compound = true;
-    if (useKalman) params.use_kalman = true;
+    if (useKalman) {
+      params.use_kalman = true;
+      const qr = parseFloat(kalmanQR);
+      if (qr > 0) params.kalman_qr_ratio = qr;
+    }
     onSubmit(params);
   };
 
@@ -312,10 +317,27 @@ export function ParameterForm({ onSubmit, loading }: Props) {
       </label>
 
       {/* Kalman filter */}
-      <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-        <input type="checkbox" checked={useKalman} onChange={(e) => setUseKalman(e.target.checked)} />
-        Kalman Filter (noise reduction, Q/R=0.1)
-      </label>
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+          <input type="checkbox" checked={useKalman} onChange={(e) => setUseKalman(e.target.checked)} />
+          Kalman Filter
+        </label>
+        {useKalman && (
+          <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            Q/R:
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              max="1"
+              value={kalmanQR}
+              onChange={(e) => setKalmanQR(e.target.value)}
+              className="w-16 px-1 py-0.5 rounded text-xs"
+              style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+            />
+          </label>
+        )}
+      </div>
 
       {/* Submit */}
       <button
