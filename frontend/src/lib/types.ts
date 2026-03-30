@@ -179,6 +179,9 @@ export interface PortfolioRequest {
   ribbon_periods?: number[];
   fast_period?: number;
   slow_period?: number;
+  compound?: boolean;
+  use_kalman?: boolean;
+  kalman_qr_ratio?: number;
 }
 
 export interface PortfolioTradeRecord extends TradeRecord {
