@@ -28,7 +28,7 @@ function formatLabel(params: BacktestRequest): string {
   if (params.tp_pips) parts.push(`TP${params.tp_pips}`);
   if (params.sl_pips) parts.push(`SL${params.sl_pips}`);
   if (params.compound) parts.push("[C]");
-  if (params.use_kalman) parts.push("[KF]");
+  if (params.use_kalman) parts.push(`[KF${params.kalman_qr_ratio ?? 0.1}]`);
   return parts.join(" ");
 }
 
@@ -91,7 +91,7 @@ export function HistoryPanel({ onSelect, refreshKey = 0 }: Props) {
               className="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer hover:bg-white/5 group"
             >
               <div className="min-w-0">
-                <p className="text-xs font-medium truncate">
+                <p className="font-medium leading-tight break-words" style={{ fontSize: "10px" }}>
                   {formatLabel(entry.params)}
                 </p>
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>

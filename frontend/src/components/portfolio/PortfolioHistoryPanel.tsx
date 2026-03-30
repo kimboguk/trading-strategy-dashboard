@@ -118,7 +118,7 @@ export function PortfolioHistoryPanel({ onSelect, refreshKey = 0 }: Props) {
               className="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer hover:bg-white/5 group"
             >
               <div className="min-w-0">
-                <p className="text-xs font-medium truncate">
+                <p className="font-medium leading-tight break-words" style={{ fontSize: "10px" }}>
                   {formatPortfolioLabel(entry.params)}
                 </p>
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
