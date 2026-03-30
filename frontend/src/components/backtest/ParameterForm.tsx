@@ -34,6 +34,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
   const [fastPeriod, setFastPeriod] = useState("60");
   const [slowPeriod, setSlowPeriod] = useState("240");
   const [compound, setCompound] = useState(false);
+  const [useKalman, setUseKalman] = useState(false);
 
   const isTrendRibbon = strategy === "trend_ribbon";
   const isGoldenCross = strategy === "golden_cross";
@@ -103,6 +104,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
       if (sp > 0) params.slow_period = sp;
     }
     if (compound) params.compound = true;
+    if (useKalman) params.use_kalman = true;
     onSubmit(params);
   };
 
@@ -307,6 +309,12 @@ export function ParameterForm({ onSubmit, loading }: Props) {
       <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
         <input type="checkbox" checked={compound} onChange={(e) => setCompound(e.target.checked)} />
         Compound (position sizing proportional to equity)
+      </label>
+
+      {/* Kalman filter */}
+      <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+        <input type="checkbox" checked={useKalman} onChange={(e) => setUseKalman(e.target.checked)} />
+        Kalman Filter (noise reduction, Q/R=0.1)
       </label>
 
       {/* Submit */}

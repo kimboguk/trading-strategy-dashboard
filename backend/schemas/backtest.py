@@ -20,6 +20,8 @@ class BacktestRequest(BaseModel):
     fast_period: Optional[int] = None   # golden_cross: fast MA period (default 50)
     slow_period: Optional[int] = None   # golden_cross: slow MA period (default 200)
     compound: bool = False              # compound mode: position size scales with equity
+    use_kalman: bool = False             # Kalman filter for noise reduction
+    kalman_qr_ratio: float = 0.1         # Kalman Q/R ratio (lower = more smoothing)
 
 
 class TradeRecord(BaseModel):

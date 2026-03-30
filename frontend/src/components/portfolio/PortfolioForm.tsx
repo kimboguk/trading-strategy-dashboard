@@ -59,6 +59,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
   const [tpPips, setTpPips] = useState("");
   const [slPips, setSlPips] = useState("");
   const [compound, setCompound] = useState(false);
+  const [useKalman, setUseKalman] = useState(false);
 
   // Per-strategy params
   const [stratParams, setStratParams] = useState<Record<string, StrategyParams>>({
@@ -270,6 +271,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       },
       strategy_defaults: sd,
       ...(compound && { compound: true }),
+      ...(useKalman && { use_kalman: true }),
     };
     onSubmit(params);
   };
@@ -531,6 +533,12 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
         <input type="checkbox" checked={compound} onChange={(e) => setCompound(e.target.checked)} />
         Compound (position sizing proportional to equity)
+      </label>
+
+      {/* Kalman filter */}
+      <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+        <input type="checkbox" checked={useKalman} onChange={(e) => setUseKalman(e.target.checked)} />
+        Kalman Filter (noise reduction, Q/R=0.1)
       </label>
 
       {/* Submit */}
