@@ -34,6 +34,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
   const [fastPeriod, setFastPeriod] = useState("60");
   const [slowPeriod, setSlowPeriod] = useState("240");
   const [compound, setCompound] = useState(false);
+  const [leverage, setLeverage] = useState(1);
   const [useKalman, setUseKalman] = useState(false);
   const [kalmanQR, setKalmanQR] = useState("0.1");
 
@@ -105,6 +106,7 @@ export function ParameterForm({ onSubmit, loading }: Props) {
       if (sp > 0) params.slow_period = sp;
     }
     if (compound) params.compound = true;
+    if (leverage > 1) params.leverage = leverage;
     if (useKalman) {
       params.use_kalman = true;
       const qr = parseFloat(kalmanQR);
@@ -310,11 +312,22 @@ export function ParameterForm({ onSubmit, loading }: Props) {
         </div>
       )}
 
-      {/* Compound mode */}
-      <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-        <input type="checkbox" checked={compound} onChange={(e) => setCompound(e.target.checked)} />
-        Compound (position sizing proportional to equity)
-      </label>
+      {/* Compound mode + Leverage */}
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+          <input type="checkbox" checked={compound} onChange={(e) => setCompound(e.target.checked)} />
+          Compound
+        </label>
+        <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+          Leverage:
+          <select value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))}
+            className="px-1 py-0.5 rounded text-xs"
+            style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
+            <option value={1}>1x</option>
+            <option value={10}>10x</option>
+          </select>
+        </label>
+      </div>
 
       {/* Kalman filter */}
       <div className="flex items-center gap-2">

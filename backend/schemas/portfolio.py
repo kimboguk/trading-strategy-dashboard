@@ -19,6 +19,7 @@ class PortfolioRequest(BaseModel):
     strategy_defaults: Optional[dict] = None   # {"trend_ribbon": {...}, "golden_cross": {...}}
 
     compound: bool = False
+    leverage: int = 1
     use_kalman: bool = False
     kalman_qr_ratio: float = 0.1
 

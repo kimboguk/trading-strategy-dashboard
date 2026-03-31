@@ -28,6 +28,7 @@ function formatLabel(params: BacktestRequest): string {
   if (params.tp_pips) parts.push(`TP${params.tp_pips}`);
   if (params.sl_pips) parts.push(`SL${params.sl_pips}`);
   if (params.compound) parts.push("[C]");
+  if (params.leverage && params.leverage > 1) parts.push(`[${params.leverage}x]`);
   if (params.use_kalman) parts.push(`[KF${params.kalman_qr_ratio ?? 0.1}]`);
   return parts.join(" ");
 }

@@ -42,6 +42,7 @@ export interface BacktestRequest {
   fast_period?: number;
   slow_period?: number;
   compound?: boolean;
+  leverage?: number;
   use_kalman?: boolean;
   kalman_qr_ratio?: number;
 }
@@ -180,6 +181,7 @@ export interface PortfolioRequest {
   fast_period?: number;
   slow_period?: number;
   compound?: boolean;
+  leverage?: number;
   use_kalman?: boolean;
   kalman_qr_ratio?: number;
 }
