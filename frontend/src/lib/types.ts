@@ -43,6 +43,7 @@ export interface BacktestRequest {
   slow_period?: number;
   compound?: boolean;
   leverage?: number;
+  kelly_fraction?: number;
   use_kalman?: boolean;
   kalman_qr_ratio?: number;
 }
@@ -182,6 +183,7 @@ export interface PortfolioRequest {
   slow_period?: number;
   compound?: boolean;
   leverage?: number;
+  kelly_fraction?: number;
   use_kalman?: boolean;
   kalman_qr_ratio?: number;
 }

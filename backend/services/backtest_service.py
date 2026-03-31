@@ -39,6 +39,7 @@ def run_backtest_task(task_id: str, params: dict) -> dict:
         slow_period=params.get("slow_period"),
         compound=params.get("compound", False),
         leverage=params.get("leverage", 1),
+        kelly_fraction=params.get("kelly_fraction", 0.0),
         use_kalman=params.get("use_kalman", False),
         kalman_qr_ratio=params.get("kalman_qr_ratio", 0.1),
         verbose=False,

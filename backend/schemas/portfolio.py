@@ -20,6 +20,7 @@ class PortfolioRequest(BaseModel):
 
     compound: bool = False
     leverage: int = 1
+    kelly_fraction: float = 0.0
     use_kalman: bool = False
     kalman_qr_ratio: float = 0.1
 

@@ -148,6 +148,7 @@ def run_portfolio_task(task_id: str, params: dict) -> dict:
             _keep_cache=True,
             compound=compound,
             leverage=params.get("leverage", 1),
+            kelly_fraction=params.get("kelly_fraction", 0.0),
             use_kalman=params.get("use_kalman", False),
             kalman_qr_ratio=params.get("kalman_qr_ratio", 0.1),
         )

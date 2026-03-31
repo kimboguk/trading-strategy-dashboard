@@ -21,6 +21,7 @@ class BacktestRequest(BaseModel):
     slow_period: Optional[int] = None   # golden_cross: slow MA period (default 200)
     compound: bool = False              # compound mode: position size scales with equity
     leverage: int = 1                    # leverage multiplier (1 or 10)
+    kelly_fraction: float = 0.0          # Kelly fraction (0=off, 0.25=Quarter, 0.5=Half, 1.0=Full)
     use_kalman: bool = False             # Kalman filter for noise reduction
     kalman_qr_ratio: float = 0.1         # Kalman Q/R ratio (lower = more smoothing)
 

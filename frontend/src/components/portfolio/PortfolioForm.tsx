@@ -60,6 +60,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
   const [slPips, setSlPips] = useState("200");
   const [compound, setCompound] = useState(false);
   const [leverage, setLeverage] = useState(1);
+  const [kellyFraction, setKellyFraction] = useState(0);
   const [useKalman, setUseKalman] = useState(false);
   const [kalmanQR, setKalmanQR] = useState("0.1");
 
@@ -274,6 +275,7 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       strategy_defaults: sd,
       ...(compound && { compound: true }),
       ...(leverage > 1 && { leverage }),
+      ...(kellyFraction > 0 && { kelly_fraction: kellyFraction }),
       ...(useKalman && { use_kalman: true, kalman_qr_ratio: parseFloat(kalmanQR) || 0.1 }),
     };
     onSubmit(params);
@@ -532,19 +534,31 @@ export function PortfolioForm({ onSubmit, loading }: Props) {
       {/* Strategy-specific sections (TF, MA, filters, params) */}
       {activeStrategies.map((stratId) => renderStrategySection(stratId))}
 
-      {/* Compound mode + Leverage */}
-      <div className="flex items-center gap-4">
+      {/* Compound + Leverage + Kelly */}
+      <div className="flex items-center gap-3 flex-wrap">
         <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
           <input type="checkbox" checked={compound} onChange={(e) => setCompound(e.target.checked)} />
           Compound
         </label>
         <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-          Leverage:
+          Lev:
           <select value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))}
             className="px-1 py-0.5 rounded text-xs"
             style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
             <option value={1}>1x</option>
             <option value={10}>10x</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+          Kelly:
+          <select value={kellyFraction} onChange={(e) => setKellyFraction(parseFloat(e.target.value))}
+            className="px-1 py-0.5 rounded text-xs"
+            style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
+            <option value={0}>Off</option>
+            <option value={0.25}>Quarter</option>
+            <option value={0.5}>Half</option>
+            <option value={0.75}>3/4</option>
+            <option value={1.0}>Full</option>
           </select>
         </label>
       </div>
