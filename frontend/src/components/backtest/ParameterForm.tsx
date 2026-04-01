@@ -329,18 +329,20 @@ export function ParameterForm({ onSubmit, loading }: Props) {
             <option value={10}>10x</option>
           </select>
         </label>
-        <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-          Kelly:
-          <select value={kellyFraction} onChange={(e) => setKellyFraction(parseFloat(e.target.value))}
-            className="px-1 py-0.5 rounded text-xs"
-            style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
-            <option value={0}>Off</option>
-            <option value={0.25}>Quarter</option>
-            <option value={0.5}>Half</option>
-            <option value={0.75}>3/4</option>
-            <option value={1.0}>Full</option>
-          </select>
-        </label>
+        {compound && (
+          <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            Kelly:
+            <select value={kellyFraction} onChange={(e) => setKellyFraction(parseFloat(e.target.value))}
+              className="px-1 py-0.5 rounded text-xs"
+              style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
+              <option value={0}>Off</option>
+              <option value={0.25}>Quarter</option>
+              <option value={0.5}>Half</option>
+              <option value={0.75}>3/4</option>
+              <option value={1.0}>Full</option>
+            </select>
+          </label>
+        )}
       </div>
 
       {/* Kalman filter */}
