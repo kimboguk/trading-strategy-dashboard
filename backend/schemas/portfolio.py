@@ -23,6 +23,7 @@ class PortfolioRequest(BaseModel):
     kelly_fraction: float = 0.0
     use_kalman: bool = False
     kalman_qr_ratio: float = 0.1
+    htf_exit: bool = False
 
     # Legacy fields (backward compat)
     strategy: Optional[str] = None

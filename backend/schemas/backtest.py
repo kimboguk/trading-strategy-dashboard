@@ -24,6 +24,7 @@ class BacktestRequest(BaseModel):
     kelly_fraction: float = 0.0          # Kelly fraction (0=off, 0.25=Quarter, 0.5=Half, 1.0=Full)
     use_kalman: bool = False             # Kalman filter for noise reduction
     kalman_qr_ratio: float = 0.1         # Kalman Q/R ratio (lower = more smoothing)
+    htf_exit: bool = False               # Exit based on higher TF filter deviation (ignore current-TF exit signal)
 
 
 class TradeRecord(BaseModel):
