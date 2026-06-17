@@ -1,18 +1,20 @@
 import type {
-  SymbolInfo,
-  StrategyInfo,
+  Market,
+  UniverseMeta,
+  MarketInfo,
   BacktestRequest,
   BacktestStats,
   TradeRecord,
   YearlyRow,
-  ChartData,
-  TaskStatus,
   EquityPoint,
-  PortfolioRequest,
-  PortfolioResult,
+  PositionAgg,
+  TaskStatus,
+  SignalState,
+  CycleResult,
+  OrdersResult,
 } from "./types";
 
-const BASE = "";  // same origin via Next.js rewrite
+const BASE = ""; // same origin via Next.js rewrite
 
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, init);
@@ -23,27 +25,21 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// ── Metadata ──
+// ── Universe ──
 
-export async function getSymbols(): Promise<Record<string, SymbolInfo>> {
-  return fetchJSON("/api/symbols");
+export async function getMarkets(): Promise<MarketInfo[]> {
+  return fetchJSON("/api/universe/markets");
 }
 
-export async function getTimeframes(): Promise<string[]> {
-  return fetchJSON("/api/timeframes");
-}
-
-export async function getStrategies(): Promise<StrategyInfo[]> {
-  return fetchJSON("/api/strategies");
-}
-
-export async function getSymbolDateRange(symbol: string): Promise<{ start: string; end: string }> {
-  return fetchJSON(`/api/symbols/${symbol}/date-range`);
+export async function getUniverseMeta(market: Market): Promise<UniverseMeta> {
+  return fetchJSON(`/api/universe/meta?market=${market}`);
 }
 
 // ── Backtest ──
 
-export async function runBacktest(req: BacktestRequest): Promise<{ task_id: string; result_id: string }> {
+export async function runBacktest(
+  req: BacktestRequest
+): Promise<{ task_id: string; result_id: string }> {
   return fetchJSON("/api/backtest/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -63,10 +59,6 @@ export async function getBacktestTrades(taskId: string): Promise<TradeRecord[]> 
   return fetchJSON(`/api/backtest/${taskId}/trades`);
 }
 
-export async function getBacktestChart(taskId: string): Promise<ChartData> {
-  return fetchJSON(`/api/backtest/${taskId}/chart`);
-}
-
 export async function getBacktestEquity(taskId: string): Promise<EquityPoint[]> {
   return fetchJSON(`/api/backtest/${taskId}/equity`);
 }
@@ -75,22 +67,26 @@ export async function getBacktestYearly(taskId: string): Promise<YearlyRow[]> {
   return fetchJSON(`/api/backtest/${taskId}/yearly`);
 }
 
+export async function getBacktestPositions(taskId: string): Promise<PositionAgg[]> {
+  return fetchJSON(`/api/backtest/${taskId}/positions`);
+}
+
 // ── Backtest History (DB-backed) ──
 
 export interface BacktestHistoryEntry {
   id: string;
   created_at: string;
-  params: import("./types").BacktestRequest;
-  stats: import("./types").BacktestStats;
-  yearly: import("./types").YearlyRow[];
+  params: BacktestRequest;
+  stats: BacktestStats;
+  yearly: YearlyRow[];
 }
 
 export interface BacktestFullResult {
-  stats: import("./types").BacktestStats;
-  trades: import("./types").TradeRecord[];
-  grid: import("./types").ChartData;
-  equity: import("./types").EquityPoint[];
-  yearly: import("./types").YearlyRow[];
+  stats: BacktestStats;
+  trades: TradeRecord[];
+  equity: EquityPoint[];
+  yearly: YearlyRow[];
+  positions: PositionAgg[];
 }
 
 export async function getBacktestHistory(): Promise<BacktestHistoryEntry[]> {
@@ -105,44 +101,27 @@ export async function deleteSavedBacktest(resultId: string): Promise<void> {
   await fetchJSON(`/api/backtest/saved/${resultId}`, { method: "DELETE" });
 }
 
-// ── Portfolio ──
+// ── Signals / forward ops ──
 
-export async function runPortfolio(req: PortfolioRequest): Promise<{ task_id: string }> {
-  return fetchJSON("/api/portfolio/run", {
+export async function runSignalCycle(market: Market, as_of?: string): Promise<CycleResult> {
+  return fetchJSON("/api/signals/run-cycle", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
+    body: JSON.stringify({ market, as_of: as_of ?? null }),
   });
 }
 
-export async function getPortfolioStatus(taskId: string): Promise<TaskStatus> {
-  return fetchJSON(`/api/portfolio/${taskId}`);
+export async function getSignalState(market: Market): Promise<SignalState> {
+  return fetchJSON(`/api/signals/state?market=${market}`);
 }
 
-export async function getPortfolioResult(taskId: string): Promise<PortfolioResult> {
-  return fetchJSON(`/api/portfolio/${taskId}/result`);
+export async function getSignalOrders(market: Market, as_of?: string): Promise<OrdersResult> {
+  const q = as_of ? `&as_of=${as_of}` : "";
+  return fetchJSON(`/api/signals/orders?market=${market}${q}`);
 }
 
-// ── Portfolio History (DB-backed) ──
-
-export interface PortfolioHistoryEntry {
-  id: string;
-  created_at: string;
-  params: import("./types").PortfolioRequest;
-  stats: import("./types").BacktestStats;
-  yearly: import("./types").YearlyRow[];
-}
-
-export async function getPortfolioHistory(): Promise<PortfolioHistoryEntry[]> {
-  return fetchJSON("/api/portfolio/history");
-}
-
-export async function getSavedPortfolioResult(resultId: string): Promise<PortfolioResult> {
-  return fetchJSON(`/api/portfolio/saved/${resultId}`);
-}
-
-export async function deleteSavedPortfolio(resultId: string): Promise<void> {
-  await fetchJSON(`/api/portfolio/saved/${resultId}`, { method: "DELETE" });
+export async function getForwardEquity(market: Market): Promise<EquityPoint[]> {
+  return fetchJSON(`/api/signals/equity?market=${market}`);
 }
 
 // ── Poll helper ──
@@ -152,31 +131,13 @@ export async function pollUntilComplete(
   onProgress?: (p: number) => void,
   onMessage?: (msg: string) => void,
   intervalMs = 2000,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<void> {
   while (true) {
     if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
     const status = await getTaskStatus(taskId);
     if (status.status === "complete") return;
     if (status.status === "error") throw new Error(status.error || "Backtest failed");
-    onProgress?.(status.progress);
-    if (status.message) onMessage?.(status.message);
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-}
-
-export async function pollPortfolioUntilComplete(
-  taskId: string,
-  onProgress?: (p: number) => void,
-  onMessage?: (msg: string) => void,
-  intervalMs = 2000,
-  signal?: AbortSignal,
-): Promise<void> {
-  while (true) {
-    if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
-    const status = await getPortfolioStatus(taskId);
-    if (status.status === "complete") return;
-    if (status.status === "error") throw new Error(status.error || "Portfolio backtest failed");
     onProgress?.(status.progress);
     if (status.message) onMessage?.(status.message);
     await new Promise((r) => setTimeout(r, intervalMs));

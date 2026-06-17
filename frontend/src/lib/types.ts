@@ -10,83 +10,98 @@ export function pfColor(pf: number | string): string {
   return pf >= 1.3 ? "var(--green)" : pf >= 1 ? "var(--text-primary)" : "var(--red)";
 }
 
-// ── API Types ──
+export type Market = "USD" | "KRW";
 
-export interface SymbolInfo {
-  category: "forex" | "index" | "crypto";
-  pip_size: number;
-  spread_pips: number;
-  commission_pips: number;
-  quote_ccy: string;
+// ── Universe meta ──
+
+export interface UniverseMeta {
+  market: Market;
+  label: string;
+  n_selected: number;
+  n_total: number;
+  data_start: string | null;
+  data_end: string | null;
+  lookbacks_available: number[];
+  rankings: string[];
+  entry_timings: string[];
+  price_modes: string[];
+  defaults: {
+    price_mode: string;
+    initial_capital: number;
+    min_trading_value: number;
+    buy_commission: number;
+    sell_commission: number;
+    sell_tax: number;
+  };
 }
 
-export interface StrategyInfo {
-  id: string;
-  name: string;
-  description: string;
-  ma_types: string[];
+export interface MarketInfo {
+  market: Market;
+  label: string;
 }
+
+// ── Backtest ──
 
 export interface BacktestRequest {
-  strategy: string;
-  symbol: string;
-  timeframe: string;
-  ma_type: string;
+  market: Market;
   start?: string;
   end?: string;
-  tp_pips?: number;
-  sl_pips?: number;
-  filter_tfs?: string[];
-  alignment_mas?: number[];
-  ribbon_periods?: number[];
-  fast_period?: number;
-  slow_period?: number;
-  compound?: boolean;
-  leverage?: number;
-  kelly_fraction?: number;
-  use_kalman?: boolean;
-  kalman_qr_ratio?: number;
+  ath_ratio: number;
+  vol_ratio: number;
+  min_trading_value?: number | null;
+  top_n: number;
+  tp_pct: number;
+  sl_pct: number;
+  no_sl: boolean;
+  slot_fraction: number;
+  entry_timing: string;
+  ranking: string;
+  lookback: number;
+  quality_filter: boolean;
+  price_mode?: string | null;
+  initial_capital?: number | null;
 }
 
 export interface BacktestStats {
-  symbol: string;
-  timeframe: string;
-  ma_type: string;
-  data_period_days: number;
-  total_trades: number;
-  long_trades: number;
-  short_trades: number;
-  win_rate: number;
+  trades: number;
+  win_rate_pct: number;
   profit_factor: number | string;
-  total_pnl_pips: number;
-  total_cost_pips: number;
-  total_pnl_usd: number;
-  avg_win_usd: number;
-  avg_loss_usd: number;
-  expectancy_pips: number;
-  max_drawdown_pct: number;
-  annual_return_pct: number;
-  sharpe_ratio: number;
-  annual_volatility_pct: number;
-  avg_holding: string;
-  initial_capital: number;
+  rrr: number | string;
+  avg_win: number;
+  avg_loss: number;
+  total_pnl: number;
   final_equity: number;
+  total_return_pct: number;
+  ann_return_pct: number;
+  mdd_pct: number;
+  avg_holding_days: number;
+  exit_reasons: Record<string, number>;
+  sharpe_ratio: number;
+  sortino_ratio: number;
+  calmar_ratio: number;
+  ann_volatility_pct: number;
+  market: Market;
+  initial_capital: number;
+  price_mode: string;
+  ranking: string;
+  lookback: number;
+  period_start: string | null;
+  period_end: string | null;
+  n_trading_days: number;
   elapsed_sec?: number;
-  started_at?: string;
 }
 
 export interface TradeRecord {
-  entry_time: string;
-  exit_time: string;
-  direction: string;
+  ticker: string;
+  entry_date: string;
+  exit_date: string;
   entry_price: number;
   exit_price: number;
-  pnl_pips: number;
-  cost_pips: number;
-  net_pnl_pips: number;
-  pnl_usd: number;
-  equity_after: number;
+  shares: number;
+  pnl: number;
+  pnl_pct: number;
   exit_reason: string;
+  holding_days: number;
 }
 
 export interface YearlyRow {
@@ -94,36 +109,26 @@ export interface YearlyRow {
   trades: number;
   win_rate: number;
   profit_factor: number | string;
-  net_pnl_pips: number;
-  net_pnl_usd: number;
-  avg_pnl_pips: number;
+  rrr: number | string;
+  net_pnl: number;
+  eoy_equity: number;
+  year_return_pct: number;
+  year_mdd_pct: number;
 }
 
-export interface OHLCVBar {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
+export interface EquityPoint {
+  time: string;
+  equity: number;
+  cash?: number;
+  positions_value?: number;
+  n_positions?: number;
 }
 
-export interface LinePoint {
-  time: number;
-  value: number;
-}
-
-export interface SignalMarker {
-  time: number;
-  position: string;
-  color: string;
-  shape: string;
-  text: string;
-}
-
-export interface ChartData {
-  candles: OHLCVBar[];
-  ma_lines: Record<string, LinePoint[]>;
-  markers: SignalMarker[];
+export interface PositionAgg {
+  ticker: string;
+  n_trades: number;
+  total_pnl: number;
+  win_rate: number;
 }
 
 export interface TaskStatus {
@@ -134,79 +139,97 @@ export interface TaskStatus {
   error?: string;
 }
 
-export interface EquityPoint {
-  time: string;
-  equity: number;
+// ── Signals / forward tracking ──
+
+export interface SignalPick {
+  rank: number;
+  ticker: string;
+  product_id?: number;
+  metric_value: number | null;
+  close: number | null;
+  high: number | null;
+  prev_ath: number | null;
+  volume: number | null;
+  prev_volume: number | null;
 }
 
-// ── Portfolio Types ──
-
-export interface SlotAllocation {
-  symbol: string;
-  strategy: string;
-  overrides?: Record<string, any>;
+export interface ForwardPosition {
+  ticker: string;
+  product_id?: number;
+  entry_date: string | null;
+  entry_price: number | null;
+  shares: number;
+  cost_basis: number;
+  tp_price: number | null;
+  sl_price: number | null;
+  last_close: number;
+  market_value: number;
+  unrealized_pnl: number;
+  unrealized_pct: number;
 }
 
-export interface PortfolioDefaults {
-  timeframe: string;
-  ma_type: string;
-  start?: string;
-  end?: string;
-  tp_pips?: number;
-  sl_pips?: number;
-  filter_tfs?: string[];
+export interface PendingPosition {
+  signal_date: string | null;
+  rank: number;
+  ticker: string;
+  product_id?: number;
+  entry_timing: string;
 }
 
-export interface PortfolioRequest {
-  // Optional user-defined run name
-  run_name?: string;
-
-  // New multi-strategy fields
-  allocations?: SlotAllocation[];
-  capital_per_slot?: number;
-  defaults?: PortfolioDefaults;
-  strategy_defaults?: Record<string, Record<string, any>>;
-
-  // Legacy fields (backward compat)
-  strategy?: string;
-  symbols?: string[];
-  timeframe?: string;
-  ma_type?: string;
-  start?: string;
-  end?: string;
-  tp_pips?: number;
-  sl_pips?: number;
-  filter_tfs?: string[];
-  alignment_mas?: number[];
-  ribbon_periods?: number[];
-  fast_period?: number;
-  slow_period?: number;
-  compound?: boolean;
-  leverage?: number;
-  kelly_fraction?: number;
-  use_kalman?: boolean;
-  kalman_qr_ratio?: number;
+export interface ClosedPosition {
+  ticker: string;
+  entry_date: string | null;
+  exit_date: string | null;
+  entry_price: number | null;
+  exit_price: number | null;
+  shares: number;
+  pnl: number | null;
+  pnl_pct: number | null;
+  exit_reason: string;
+  holding_days: number;
 }
 
-export interface PortfolioTradeRecord extends TradeRecord {
-  symbol: string;
+export interface SignalState {
+  market: Market;
+  latest_signal_date: string | null;
+  latest_signals: SignalPick[];
+  open_positions: ForwardPosition[];
+  pending: PendingPosition[];
+  closed_recent: ClosedPosition[];
 }
 
-export interface PerSymbolResult {
-  stats: BacktestStats;
-  yearly: YearlyRow[];
+export interface CapitalSummary {
+  cash: number;
+  positions_value: number;
+  total_equity: number;
+  n_open_positions: number;
+  daily_return_pct: number;
+  cum_return_pct: number;
+  n_entries: number;
+  n_exits: number;
 }
 
-export interface CorrelationData {
-  symbols: string[];
-  matrix: number[][];
+export interface CycleResult {
+  market: Market;
+  as_of: string;
+  execution_mode: string;
+  capital: CapitalSummary;
+  entries: { ticker: string; entry_price: number; shares: number; cost: number }[];
+  exits: { ticker: string; reason: string; exit_price: number; pnl: number; pnl_pct: number }[];
+  picks: SignalPick[];
+  meta: { ranking_method: string; lookback_days: number; total_candidates: number };
 }
 
-export interface PortfolioResult {
-  stats: BacktestStats;
-  trades: PortfolioTradeRecord[];
-  equity: EquityPoint[];
-  yearly: YearlyRow[];
-  per_symbol: Record<string, PerSymbolResult>;
-  correlation?: CorrelationData;
+export interface OrderTicket {
+  ticker: string;
+  side: "BUY" | "SELL";
+  status: string;
+  [k: string]: any;
+}
+
+export interface OrdersResult {
+  market: Market;
+  execution_mode: string;
+  buys: OrderTicket[];
+  sells: OrderTicket[];
 }

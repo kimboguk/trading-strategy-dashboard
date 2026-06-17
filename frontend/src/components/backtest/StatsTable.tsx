@@ -6,6 +6,11 @@ interface Props {
   stats: BacktestStats;
 }
 
+function money(v: number, market: string): string {
+  if (market === "KRW") return `₩${Math.round(v).toLocaleString()}`;
+  return `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}>
@@ -18,26 +23,32 @@ function StatRow({ label, value, color }: { label: string; value: string; color?
 }
 
 export function StatsTable({ stats }: Props) {
-  const pnlColor = stats.total_pnl_pips >= 0 ? "var(--green)" : "var(--red)";
+  const m = stats.market;
+  const pnlColor = stats.total_pnl >= 0 ? "var(--green)" : "var(--red)";
+  const exitStr = Object.entries(stats.exit_reasons || {})
+    .map(([k, v]) => `${k}:${v}`)
+    .join("  ");
 
   return (
-    <div
-      className="rounded-lg p-4"
-      style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
-    >
+    <div className="rounded-lg p-4" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
       <h3 className="text-sm font-semibold mb-3 uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
         Performance
       </h3>
-      <StatRow label="Trades" value={`${stats.total_trades} (L:${stats.long_trades} / S:${stats.short_trades})`} />
-      <StatRow label="Win Rate" value={`${stats.win_rate}%`} />
+      <StatRow label="Trades" value={`${stats.trades}`} />
+      <StatRow label="Win Rate" value={`${stats.win_rate_pct.toFixed(1)}%`} />
       <StatRow label="Profit Factor" value={fmtPF(stats.profit_factor)} color={pfColor(stats.profit_factor)} />
-      <StatRow label="Net P&L" value={`${stats.total_pnl_pips >= 0 ? "+" : ""}${stats.total_pnl_pips.toFixed(1)} pips ($${stats.total_pnl_usd.toFixed(0)})`} color={pnlColor} />
-      <StatRow label="Expectancy" value={`${stats.expectancy_pips.toFixed(1)} pips/trade`} />
-      <StatRow label="Max Drawdown" value={`${stats.max_drawdown_pct.toFixed(1)}%`} color="var(--red)" />
-      <StatRow label="Annual Return" value={`${stats.annual_return_pct >= 0 ? "+" : ""}${stats.annual_return_pct.toFixed(1)}%`} color={stats.annual_return_pct >= 0 ? "var(--green)" : "var(--red)"} />
-      <StatRow label="Total Cost" value={`${stats.total_cost_pips.toFixed(1)} pips`} />
-      <StatRow label="Avg Holding" value={stats.avg_holding.split(".")[0]} />
-      <StatRow label="Capital" value={`$${stats.initial_capital.toLocaleString()} → $${stats.final_equity.toLocaleString()}`} color={pnlColor} />
+      <StatRow label="RRR" value={fmtPF(stats.rrr)} />
+      <StatRow label="Net P&L" value={`${stats.total_pnl >= 0 ? "+" : ""}${money(stats.total_pnl, m)}`} color={pnlColor} />
+      <StatRow label="Total Return" value={`${stats.total_return_pct >= 0 ? "+" : ""}${stats.total_return_pct.toFixed(1)}%`} color={pnlColor} />
+      <StatRow label="Annual Return" value={`${stats.ann_return_pct >= 0 ? "+" : ""}${stats.ann_return_pct.toFixed(1)}%`} color={stats.ann_return_pct >= 0 ? "var(--green)" : "var(--red)"} />
+      <StatRow label="Max Drawdown" value={`${stats.mdd_pct.toFixed(1)}%`} color="var(--red)" />
+      <StatRow label="Sharpe" value={stats.sharpe_ratio.toFixed(2)} color={stats.sharpe_ratio >= 1 ? "var(--green)" : undefined} />
+      <StatRow label="Sortino" value={stats.sortino_ratio.toFixed(2)} />
+      <StatRow label="Calmar" value={stats.calmar_ratio.toFixed(2)} color={stats.calmar_ratio >= 2 ? "var(--green)" : undefined} />
+      <StatRow label="Volatility" value={`${stats.ann_volatility_pct.toFixed(1)}%`} />
+      <StatRow label="Avg Holding" value={`${stats.avg_holding_days.toFixed(0)}d`} />
+      <StatRow label="Capital" value={`${money(stats.initial_capital, m)} → ${money(stats.final_equity, m)}`} color={pnlColor} />
+      {exitStr && <StatRow label="Exits" value={exitStr} />}
     </div>
   );
 }
