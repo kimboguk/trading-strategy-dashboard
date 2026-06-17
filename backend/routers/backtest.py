@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Backtest API endpoints."""
+"""Backtest API endpoints — US/KR ATH+volume breakout."""
 
 import math
 import uuid
@@ -7,9 +7,9 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from schemas.backtest import BacktestRequest, TaskStatus
+from schemas.backtest import BacktestRequest
 from services.task_manager import create_task, get_task, update_task
-from services.backtest_service import run_backtest_task
+from services.ath_engine import run_ath_backtest_task
 from services.db import (
     save_backtest_result,
     get_backtest_result_by_id,
@@ -45,12 +45,13 @@ router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
 def _run_with_error_handling(task_id: str, result_id: str, params: dict):
     try:
-        result = run_backtest_task(task_id, params)
-        # Persist to DB BEFORE marking complete (so history panel sees it)
+        result = run_ath_backtest_task(task_id, params)
         sanitized = _sanitize_floats(result)
         save_backtest_result(result_id, params, sanitized)
         update_task(task_id, status="complete")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         update_task(task_id, status="error", error=str(e))
 
 
@@ -65,13 +66,11 @@ def run_backtest(req: BacktestRequest):
 
 @router.get("/history")
 def get_history():
-    """List saved backtest results (lightweight)."""
     return list_backtest_results(limit=50)
 
 
 @router.get("/saved/{result_id}")
 def get_saved_result(result_id: str):
-    """Fetch full backtest result from DB."""
     result = get_backtest_result_by_id(result_id)
     if not result:
         raise HTTPException(404, "Result not found")
@@ -98,51 +97,35 @@ def get_backtest_status(task_id: str):
     }
 
 
-@router.get("/{task_id}/stats")
-def get_backtest_stats(task_id: str):
+def _slice(task_id: str, key: str):
     task = get_task(task_id)
     if not task:
         raise HTTPException(404, "Task not found")
     if task.status != "complete":
         raise HTTPException(400, f"Task status: {task.status}")
-    return JSONResponse(content=_sanitize_floats(task.result["stats"]))
+    return JSONResponse(content=_sanitize_floats(task.result[key]))
+
+
+@router.get("/{task_id}/stats")
+def get_backtest_stats(task_id: str):
+    return _slice(task_id, "stats")
 
 
 @router.get("/{task_id}/trades")
 def get_backtest_trades(task_id: str):
-    task = get_task(task_id)
-    if not task:
-        raise HTTPException(404, "Task not found")
-    if task.status != "complete":
-        raise HTTPException(400, f"Task status: {task.status}")
-    return JSONResponse(content=_sanitize_floats(task.result["trades"]))
-
-
-@router.get("/{task_id}/chart")
-def get_backtest_chart(task_id: str):
-    task = get_task(task_id)
-    if not task:
-        raise HTTPException(404, "Task not found")
-    if task.status != "complete":
-        raise HTTPException(400, f"Task status: {task.status}")
-    return task.result["grid"]
+    return _slice(task_id, "trades")
 
 
 @router.get("/{task_id}/equity")
 def get_backtest_equity(task_id: str):
-    task = get_task(task_id)
-    if not task:
-        raise HTTPException(404, "Task not found")
-    if task.status != "complete":
-        raise HTTPException(400, f"Task status: {task.status}")
-    return JSONResponse(content=_sanitize_floats(task.result["equity"]))
+    return _slice(task_id, "equity")
 
 
 @router.get("/{task_id}/yearly")
 def get_backtest_yearly(task_id: str):
-    task = get_task(task_id)
-    if not task:
-        raise HTTPException(404, "Task not found")
-    if task.status != "complete":
-        raise HTTPException(400, f"Task status: {task.status}")
-    return JSONResponse(content=_sanitize_floats(task.result["yearly"]))
+    return _slice(task_id, "yearly")
+
+
+@router.get("/{task_id}/positions")
+def get_backtest_positions(task_id: str):
+    return _slice(task_id, "positions")

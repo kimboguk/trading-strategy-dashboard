@@ -1,72 +1,44 @@
 # -*- coding: utf-8 -*-
-"""Pydantic models for backtest API."""
+"""Pydantic models — US/KR ATH+volume breakout 횡단면 백테스트."""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 
 
 class BacktestRequest(BaseModel):
-    strategy: str = "trend_ribbon"
-    symbol: str = "EURUSD"
-    timeframe: str = "D1"
-    ma_type: str = "ema"
-    start: Optional[str] = None    # YYYY-MM-DD
+    market: Literal["USD", "KRW"] = "KRW"
+    start: Optional[str] = None          # YYYY-MM-DD
     end: Optional[str] = None
-    tp_pips: Optional[float] = None
-    sl_pips: Optional[float] = None
-    filter_tfs: Optional[list[str]] = None  # e.g. ["D1", "H1"]
-    alignment_mas: Optional[list[int]] = None  # e.g. [30, 60, 120]
-    ribbon_periods: Optional[list[int]] = None  # e.g. [30, 60] — default: all 4
-    fast_period: Optional[int] = None   # golden_cross: fast MA period (default 50)
-    slow_period: Optional[int] = None   # golden_cross: slow MA period (default 200)
-    compound: bool = False              # compound mode: position size scales with equity
-    leverage: int = 1                    # leverage multiplier (1 or 10)
-    kelly_fraction: float = 0.0          # Kelly fraction (0=off, 0.25=Quarter, 0.5=Half, 1.0=Full)
-    use_kalman: bool = False             # Kalman filter for noise reduction
-    kalman_qr_ratio: float = 0.1         # Kalman Q/R ratio (lower = more smoothing)
-    htf_exit: bool = False               # Exit based on higher TF filter deviation (ignore current-TF exit signal)
 
+    # 신호 파라미터
+    ath_ratio: float = 1.02
+    vol_ratio: float = 2.0
+    min_trading_value: Optional[float] = None   # None=시장 프로파일 기본
 
-class TradeRecord(BaseModel):
-    entry_time: str
-    exit_time: str
-    direction: str
-    entry_price: float
-    exit_price: float
-    pnl_pips: float
-    cost_pips: float
-    net_pnl_pips: float
-    pnl_usd: float
-    equity_after: float
-    exit_reason: str
+    # 포트폴리오/청산
+    top_n: int = 3
+    tp_pct: float = 0.20
+    sl_pct: float = 0.03
+    no_sl: bool = False
+    slot_fraction: float = 0.33
+    entry_timing: Literal["avg_close_open", "next_open", "next_close", "same_close"] = "avg_close_open"
 
+    # 랭킹/데이터
+    ranking: Literal["bayes_stein", "sharpe", "expected_sharpe"] = "bayes_stein"
+    lookback: int = 504                  # 126 | 252 | 504
+    quality_filter: bool = True
+    price_mode: Optional[Literal["raw", "adjusted"]] = None  # None=시장 프로파일 기본
 
-class BacktestStats(BaseModel):
-    symbol: str
-    timeframe: str
-    ma_type: str
-    data_period_days: int = 0
-    total_trades: int = 0
-    long_trades: int = 0
-    short_trades: int = 0
-    win_rate: float = 0
-    profit_factor: float = 0
-    total_pnl_pips: float = 0
-    total_cost_pips: float = 0
-    total_pnl_usd: float = 0
-    avg_win_usd: float = 0
-    avg_loss_usd: float = 0
-    expectancy_pips: float = 0
-    max_drawdown_pct: float = 0
-    annual_return_pct: float = 0
-    avg_holding: str = ""
-    initial_capital: float = 10000
-    final_equity: float = 10000
+    # 자본/비용 (None=시장 프로파일 기본)
+    initial_capital: Optional[float] = None
+    buy_commission: Optional[float] = None
+    sell_commission: Optional[float] = None
+    sell_tax: Optional[float] = None
 
 
 class TaskStatus(BaseModel):
     task_id: str
     status: str  # pending, running, complete, error
     progress: float = 0  # 0-100
+    message: Optional[str] = None
     error: Optional[str] = None
-    stats: Optional[BacktestStats] = None

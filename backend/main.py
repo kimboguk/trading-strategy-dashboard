@@ -11,16 +11,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
-from bridge.engine_adapter import init_strategy_paths
-from services.db import ensure_backtest_table, ensure_portfolio_table
-from routers import symbols, backtest, portfolio
+from bridge.ath_bridge import init_engine_path
+from services.db import ensure_backtest_table, ensure_forward_tables
+from routers import universe, backtest, signals
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_strategy_paths()
+    init_engine_path()
     ensure_backtest_table()
-    ensure_portfolio_table()
+    ensure_forward_tables()
     yield
 
 
@@ -44,6 +44,6 @@ def health():
     return {"status": "ok"}
 
 
-app.include_router(symbols.router)
+app.include_router(universe.router)
 app.include_router(backtest.router)
-app.include_router(portfolio.router)
+app.include_router(signals.router)

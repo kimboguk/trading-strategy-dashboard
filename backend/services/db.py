@@ -7,13 +7,27 @@ from core.config import settings
 
 
 def _conn():
-    return psycopg2.connect(
-        host=settings.DB_HOST,
-        port=settings.DB_PORT,
-        dbname=settings.DB_NAME,
-        user=settings.DB_USER,
-        password=settings.DB_PASSWORD,
-    )
+    params = {
+        "host": settings.DB_HOST,
+        "port": settings.DB_PORT,
+        "dbname": settings.DB_NAME,
+        "user": settings.DB_USER,
+    }
+    if settings.DB_PASSWORD:          # 빈값이면 생략 (peer/trust)
+        params["password"] = settings.DB_PASSWORD
+    return psycopg2.connect(**params)
+
+
+def ensure_forward_tables():
+    """forward_signals/forward_positions/forward_capital 생성 (strategy-test 스키마 재사용)."""
+    schema_path = settings.STRATEGY_ROOT / "forward_test_schema.sql"
+    sql = schema_path.read_text(encoding="utf-8")
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute(sql)
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 # ── Backtest results ──
