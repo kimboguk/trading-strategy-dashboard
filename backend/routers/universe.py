@@ -45,7 +45,7 @@ def get_meta(market: str = "KRW"):
     data_start, data_end = cur.fetchone()
 
     cur.execute(
-        """SELECT DISTINCT lookback_days FROM expected_returns_snapshot
+        """SELECT DISTINCT lookback_days FROM bt_expected_returns
            ORDER BY lookback_days"""
     )
     lookbacks = [r[0] for r in cur.fetchall()]
