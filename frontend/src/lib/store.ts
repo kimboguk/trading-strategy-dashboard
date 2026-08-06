@@ -27,6 +27,27 @@ export const useMarketStore = create<MarketState>()(
   )
 );
 
+// ── 환경 모드 (Backtest / Live) ──
+
+interface EnvState {
+  env: "backtest" | "live";
+  autoTrade: boolean;            // 서버가 정본, UI는 마지막 값 캐시
+  setEnv: (e: "backtest" | "live") => void;
+  setAutoTrade: (v: boolean) => void;
+}
+
+export const useEnvStore = create<EnvState>()(
+  persist(
+    (set) => ({
+      env: "backtest",
+      autoTrade: false,
+      setEnv: (env) => set({ env }),
+      setAutoTrade: (autoTrade) => set({ autoTrade }),
+    }),
+    { name: "env-store", storage: createJSONStorage(() => sessionStorage) }
+  )
+);
+
 // ── Backtest Store ──
 
 export interface BacktestResult {

@@ -35,14 +35,39 @@ def get_meta(market: str = "KRW"):
     )
     n_total = cur.fetchone()[0]
 
+    # data_end = 가격 최신일
     cur.execute(
-        """SELECT min(trade_date)::text, max(trade_date)::text
-           FROM market_data md
-           JOIN products p ON p.product_id = md.product_id
+        """SELECT max(trade_date)::text
+           FROM market_data md JOIN products p ON p.product_id = md.product_id
            WHERE p.currency = %s""",
         (market,),
     )
-    data_start, data_end = cur.fetchone()
+    data_end = cur.fetchone()[0]
+
+    # data_start = **거래 가능한 유니버스(랭킹 데이터 breadth) 최초일**.
+    # 원시 가격 최소일(min(trade_date))은 소수 종목이 훨씬 이전부터 존재해 부적절
+    # (예: KR 1종목이 1996년부터 → 무거래 평탄구간이 백테스트 기간/지표를 왜곡).
+    # bt_expected_returns 에 종목이 breadth 임계치 이상 존재하는 최초 snapshot 사용.
+    cur.execute(
+        """SELECT min(snapshot_date)::text FROM (
+               SELECT b.snapshot_date
+               FROM bt_expected_returns b
+               JOIN products p ON p.product_id = b.product_id
+               WHERE p.currency = %s AND b.lookback_days = 504
+               GROUP BY b.snapshot_date
+               HAVING count(DISTINCT b.product_id) >= 30
+           ) t""",
+        (market,),
+    )
+    data_start = cur.fetchone()[0]
+    if not data_start:   # fallback: 랭킹 데이터 없으면 원시 가격 최소일
+        cur.execute(
+            """SELECT min(trade_date)::text
+               FROM market_data md JOIN products p ON p.product_id = md.product_id
+               WHERE p.currency = %s""",
+            (market,),
+        )
+        data_start = cur.fetchone()[0]
 
     cur.execute(
         """SELECT DISTINCT lookback_days FROM bt_expected_returns

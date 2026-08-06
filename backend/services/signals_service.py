@@ -11,10 +11,46 @@ from typing import Optional
 
 from bridge.ath_bridge import get_daily_signals
 from services.db import _conn
-from services.execution import get_adapter
+from services.execution import get_adapter, display_adapter
 
 # forward_* 가 단일시장이라 현재 운용 가능한 시장
 _FORWARD_MARKET = "KRW"
+
+# ── 수동매매 사이징 (표시 전용 — 슬롯 배분/TP·SL 제안) ──────────────
+_sizing_cache = None
+
+
+def get_sizing_config() -> dict:
+    """전략 사이징 상수 (슬롯 비율/TP/SL/매수수수료). 엔진 모듈에서 1회 로드."""
+    global _sizing_cache
+    if _sizing_cache is None:
+        from bridge.ath_bridge import get_engine, get_daily_signals
+        eng = get_engine()
+        ds = get_daily_signals()
+        _sizing_cache = {
+            "slot_fraction": float(eng.SLOT_FRACTION),
+            "tp_pct": float(eng.TP_PCT),
+            "sl_pct": float(eng.SL_PCT),
+            "buy_commission": float(eng.BUY_COMMISSION),
+            "top_n": int(eng.TOP_N_PER_DAY),
+            "forward_initial_capital": float(ds.FORWARD_INITIAL_CAPITAL),
+        }
+    return _sizing_cache
+
+
+def suggest_sizing(price, equity, cfg=None) -> Optional[dict]:
+    """가격·자본 기준 매수 제안: 슬롯 수량/금액 + TP·SL 가격. 실제 체결은 D+1 시가 반영."""
+    cfg = cfg or get_sizing_config()
+    if not price or price <= 0 or not equity or equity <= 0:
+        return None
+    slot_notional = equity * cfg["slot_fraction"]
+    shares = int(slot_notional / (price * (1 + cfg["buy_commission"])))
+    return {
+        "suggested_shares": shares,
+        "suggested_notional": round(shares * price),
+        "tp_price": round(price * (1 + cfg["tp_pct"]), 2),
+        "sl_price": round(price * (1 - cfg["sl_pct"]), 2),
+    }
 
 
 def _resolve_today(cur, as_of: Optional[str]) -> Optional[date]:
@@ -54,6 +90,7 @@ def run_daily_cycle(market: str = "KRW", as_of: Optional[str] = None) -> dict:
 
         total_equity, pos_value, n_open, daily_ret, cum_ret = \
             ds.update_capital_snapshot(cur, today, cash, n_entries, n_exits)
+        cash = total_equity - pos_value   # 스냅샷 정합 현금 (상태 기반, 멱등)
         conn.commit()
     finally:
         conn.close()
@@ -181,9 +218,155 @@ def get_forward_equity(market: str = "KRW") -> list:
             for r in rows]
 
 
+def current_forward_equity() -> float:
+    """최신 forward_capital 스냅샷의 총자본 (사이징 기준). 없으면 초기자본."""
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute("SELECT total_equity FROM forward_capital ORDER BY snapshot_date DESC LIMIT 1")
+    r = cur.fetchone()
+    cur.close()
+    conn.close()
+    if r and r[0] is not None:
+        return float(r[0])
+    return float(get_sizing_config()["forward_initial_capital"])
+
+
+def get_open_positions_for_exit() -> list:
+    """청산 감시 대상 — 현재 보유(open) 포지션 + TP/SL 레벨."""
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT ticker, product_id, shares, entry_price, tp_price, sl_price
+           FROM forward_positions WHERE status='open' ORDER BY entry_date""")
+    out = []
+    for r in cur.fetchall():
+        out.append({
+            "ticker": r[0], "product_id": r[1], "shares": r[2],
+            "entry_price": float(r[3]) if r[3] is not None else None,
+            "tp_price": float(r[4]) if r[4] is not None else None,
+            "sl_price": float(r[5]) if r[5] is not None else None,
+        })
+    cur.close()
+    conn.close()
+    return out
+
+
+def get_pending_entries() -> list:
+    """arm된 진입 대기 포지션 (전일 신호 → 당일 진입). 09:00 자동 진입의 소스."""
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT fp.ticker, fp.product_id, fp.signal_date, fp.rank_at_signal,
+                  fp.tp_pct, fp.sl_pct, fs.close_at_signal
+           FROM forward_positions fp
+           LEFT JOIN forward_signals fs
+             ON fs.signal_date = fp.signal_date AND fs.ticker = fp.ticker
+           WHERE fp.status = 'pending'
+           ORDER BY fp.signal_date, fp.rank_at_signal""")
+    out = []
+    for r in cur.fetchall():
+        out.append({
+            "ticker": r[0], "product_id": r[1],
+            "signal_date": r[2].isoformat() if r[2] else None,
+            "rank": r[3],
+            "tp_pct": float(r[4]) if r[4] is not None else None,
+            "sl_pct": float(r[5]) if r[5] is not None else None,
+            "close_at_signal": float(r[6]) if r[6] is not None else None,
+        })
+    cur.close()
+    conn.close()
+    return out
+
+
+def get_entries_on(as_of: str) -> list:
+    """as_of 당일 진입 체결된 포지션 (어제 신호 → 오늘 진입). 오늘 실제 매수 대상 표시용."""
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT ticker, product_id, signal_date, shares, entry_price,
+                  cost_basis, tp_price, sl_price, status
+           FROM forward_positions
+           WHERE entry_date = %s
+           ORDER BY signal_date, rank_at_signal""", (as_of,))
+    out = []
+    for r in cur.fetchall():
+        out.append({
+            "ticker": r[0], "product_id": r[1],
+            "signal_date": r[2].isoformat() if r[2] else None,
+            "shares": r[3],
+            "entry_price": float(r[4]) if r[4] is not None else None,
+            "cost_basis": float(r[5]) if r[5] is not None else None,
+            "tp_price": float(r[6]) if r[6] is not None else None,
+            "sl_price": float(r[7]) if r[7] is not None else None,
+            "status": r[8],
+        })
+    cur.close()
+    conn.close()
+    return out
+
+
+def get_signal_history(limit: int = 60) -> list:
+    """신호 이력 — 발생한 모든 신호(forward_signals) + 각 신호의 결과(진입/청산/손익).
+    주문(order_log) 여부와 무관하게 신호 자체를 기록으로 남김."""
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT fs.signal_date, fs.rank, fs.ticker, fs.metric_value, fs.close_at_signal,
+                  fp.status, fp.entry_date, fp.entry_price, fp.exit_date, fp.exit_price,
+                  fp.exit_reason, fp.pnl_pct
+           FROM forward_signals fs
+           LEFT JOIN forward_positions fp
+             ON fp.signal_date = fs.signal_date AND fp.ticker = fs.ticker
+           ORDER BY fs.signal_date DESC, fs.rank
+           LIMIT %s""", (limit,))
+    out = []
+    for r in cur.fetchall():
+        out.append({
+            "signal_date": r[0].isoformat() if r[0] else None,
+            "rank": r[1], "ticker": r[2],
+            "metric_value": float(r[3]) if r[3] is not None else None,
+            "close_at_signal": float(r[4]) if r[4] is not None else None,
+            "status": r[5],   # None(미집행)/pending/open/closed/skipped
+            "entry_date": r[6].isoformat() if r[6] else None,
+            "entry_price": float(r[7]) if r[7] is not None else None,
+            "exit_date": r[8].isoformat() if r[8] else None,
+            "exit_price": float(r[9]) if r[9] is not None else None,
+            "exit_reason": r[10],
+            "pnl_pct": float(r[11]) if r[11] is not None else None,
+        })
+    cur.close()
+    conn.close()
+    return out
+
+
+def get_cycle_fills(as_of: str) -> dict:
+    """자동매매용 당일 가상 체결 — 오늘 진입(BUY)·오늘 청산(SELL). shares/price 포함.
+    실제 키움 주문을 가상 forward 포트폴리오에 맞춰 미러링하기 위한 소스."""
+    conn = _conn()
+    cur = conn.cursor()
+    # 오늘 채워진 진입(당일 open 필/동일일 청산 포함 — entry_date 기준)
+    cur.execute(
+        """SELECT ticker, product_id, shares, entry_price
+           FROM forward_positions WHERE entry_date=%s""", (as_of,))
+    buys = [{"ticker": r[0], "product_id": r[1], "shares": r[2] or 0,
+             "price": float(r[3]) if r[3] is not None else None}
+            for r in cur.fetchall()]
+    # 오늘 청산된 포지션
+    cur.execute(
+        """SELECT ticker, product_id, shares, exit_price
+           FROM forward_positions WHERE exit_date=%s AND status='closed'""", (as_of,))
+    sells = [{"ticker": r[0], "product_id": r[1], "shares": r[2] or 0,
+              "price": float(r[3]) if r[3] is not None else None}
+             for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return {"buys": buys, "sells": sells}
+
+
 def get_orders_for_execution(market: str = "KRW", as_of: Optional[str] = None) -> dict:
-    """수동 집행용 주문: BUY=pending 진입 대기, SELL=오늘 청산된 포지션."""
-    adapter = get_adapter()
+    """수동 집행용 주문: BUY=pending 진입 대기, SELL=오늘 청산된 포지션.
+    ⚠ 표시 전용 — 실주문 없음(display_adapter). 실제 제출은 자동매매 경로에서만."""
+    adapter = display_adapter()
     conn = _conn()
     cur = conn.cursor()
 
@@ -211,4 +394,5 @@ def get_orders_for_execution(market: str = "KRW", as_of: Optional[str] = None) -
 
     cur.close()
     conn.close()
-    return {"market": market, "execution_mode": adapter.name, "buys": buys, "sells": sells}
+    # execution_mode 는 실제 설정 모드명(표시). 티켓 자체는 display 전용.
+    return {"market": market, "execution_mode": get_adapter().name, "buys": buys, "sells": sells}

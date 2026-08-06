@@ -151,6 +151,20 @@ export interface SignalPick {
   prev_ath: number | null;
   volume: number | null;
   prev_volume: number | null;
+  // 수동매매 사이징 제안 (표시 전용)
+  suggested_shares?: number;
+  suggested_notional?: number;
+  tp_price?: number;
+  sl_price?: number;
+}
+
+export interface Sizing {
+  equity: number;
+  slot_fraction: number;
+  slot_notional: number;
+  tp_pct: number;
+  sl_pct: number;
+  top_n: number;
 }
 
 export interface ForwardPosition {
@@ -232,4 +246,120 @@ export interface OrdersResult {
   execution_mode: string;
   buys: OrderTicket[];
   sells: OrderTicket[];
+}
+
+// ── 라이브 ──
+
+export interface LiveConfig {
+  execution_mode: string;
+  kiwoom_env: "mock" | "real";
+  broker_configured: boolean;
+  account_masked: string;
+  max_orders_per_cycle: number;
+  max_notional_per_order: number;
+  auto_trade: boolean;
+  updated_at?: string | null;
+  updated_by?: string | null;
+}
+
+export interface BrokerHolding {
+  ticker: string;
+  qty: number;
+  avg_price: number;
+  eval: number;
+}
+export interface BrokerAccount {
+  cash: number;
+  total_eval: number;
+  holdings: BrokerHolding[];
+}
+
+export interface Freshness {
+  market_data_max: string | null;
+  rt_max: string | null;
+  stale: boolean;
+}
+
+export interface AutoOrderSummary {
+  by_status: Record<string, number>;
+  submitted: number;
+  failed: number;
+  skipped: number;
+  total: number;
+}
+
+export interface EntryToday {
+  ticker: string;
+  product_id?: number;
+  signal_date: string | null;
+  shares: number;
+  entry_price: number | null;
+  cost_basis: number | null;
+  tp_price: number | null;
+  sl_price: number | null;
+  status: string;
+}
+
+export interface SignalHistoryEntry {
+  signal_date: string | null;
+  rank: number;
+  ticker: string;
+  metric_value: number | null;
+  close_at_signal: number | null;
+  status: string | null;   // null=미집행(신호만) / pending / open / closed / skipped
+  entry_date: string | null;
+  entry_price: number | null;
+  exit_date: string | null;
+  exit_price: number | null;
+  exit_reason: string | null;
+  pnl_pct: number | null;
+}
+
+export interface LiveDashboard {
+  market: Market;
+  as_of: string | null;
+  latest_signal_date: string | null;
+  picks: SignalPick[];
+  entries: OrderTicket[];
+  exits: OrderTicket[];
+  open_positions: ForwardPosition[];
+  pending: PendingPosition[];
+  closed_recent: ClosedPosition[];
+  capital: CapitalPoint | null;
+  equity_series: EquityPoint[];
+  sizing: Sizing;
+  picks_are_today: boolean;
+  entries_today: EntryToday[];
+  signal_history: SignalHistoryEntry[];
+  live: LiveConfig;
+  freshness: Freshness;
+  broker: BrokerAccount | null;
+  auto_orders: AutoOrderSummary;
+}
+
+export interface CapitalPoint {
+  time: string;
+  equity: number;
+  cash: number;
+  positions_value: number;
+  n_positions: number;
+  daily_return_pct?: number | null;
+  cum_return_pct?: number | null;
+}
+
+export interface OrderLogEntry {
+  id: number;
+  created_at: string | null;
+  cycle_as_of: string | null;
+  market: string;
+  side: string;
+  ticker: string;
+  qty: number | null;
+  price: number | null;
+  broker_env: string;
+  adapter: string;
+  intent: string;
+  broker_order_id: string | null;
+  status: string;
+  error: string | null;
 }

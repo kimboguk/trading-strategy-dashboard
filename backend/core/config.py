@@ -46,15 +46,68 @@ class Settings:
         r"D:\study\finance\trading\strategy-test"
     ))
 
-    EXECUTION_MODE: str = os.getenv("EXECUTION_MODE", "manual")  # manual | alpaca | kis
+    EXECUTION_MODE: str = os.getenv("EXECUTION_MODE", "manual")  # manual | alpaca | kis | kiwoom
 
     DEFAULT_MARKET: str = os.getenv("DEFAULT_MARKET", "KRW")
     MARKET_PROFILES: dict = MARKET_PROFILES
 
     CORS_ORIGINS: list = ["http://localhost:3000"]
 
+    # ── 키움 REST (라이브) — 모의/실전 이중 키셋, KIWOOM_ENV로 활성 선택 ──
+    KIWOOM_ENV: str = os.getenv("KIWOOM_ENV", "mock")            # mock | real
+    KIWOOM_MOCK_APP_KEY: str = os.getenv("KIWOOM_MOCK_APP_KEY", "").strip()
+    KIWOOM_MOCK_APP_SECRET: str = os.getenv("KIWOOM_MOCK_APP_SECRET", "").strip()
+    KIWOOM_MOCK_ACCOUNT_NO: str = os.getenv("KIWOOM_MOCK_ACCOUNT_NO", "").strip()
+    KIWOOM_REAL_APP_KEY: str = os.getenv("KIWOOM_REAL_APP_KEY", "").strip()
+    KIWOOM_REAL_APP_SECRET: str = os.getenv("KIWOOM_REAL_APP_SECRET", "").strip()
+    KIWOOM_REAL_ACCOUNT_NO: str = os.getenv("KIWOOM_REAL_ACCOUNT_NO", "").strip()
+    KIWOOM_MOCK_BASE_URL: str = os.getenv("KIWOOM_MOCK_BASE_URL", "https://mockapi.kiwoom.com")
+    KIWOOM_REAL_BASE_URL: str = os.getenv("KIWOOM_REAL_BASE_URL", "https://api.kiwoom.com")
+
+    # 활성 환경(KIWOOM_ENV)에 해당하는 키/계좌
+    @property
+    def KIWOOM_APP_KEY(self) -> str:
+        return self.KIWOOM_REAL_APP_KEY if self.KIWOOM_ENV == "real" else self.KIWOOM_MOCK_APP_KEY
+
+    @property
+    def KIWOOM_APP_SECRET(self) -> str:
+        return self.KIWOOM_REAL_APP_SECRET if self.KIWOOM_ENV == "real" else self.KIWOOM_MOCK_APP_SECRET
+
+    @property
+    def KIWOOM_ACCOUNT_NO(self) -> str:
+        return self.KIWOOM_REAL_ACCOUNT_NO if self.KIWOOM_ENV == "real" else self.KIWOOM_MOCK_ACCOUNT_NO
+
+    # ── 자동매매 안전 캡 ────────────────────────────────────────
+    MAX_ORDERS_PER_CYCLE: int = int(os.getenv("MAX_ORDERS_PER_CYCLE", 10))
+    MAX_NOTIONAL_PER_ORDER: float = float(os.getenv("MAX_NOTIONAL_PER_ORDER", 5_000_000))  # KRW
+
+    LIVE_SCHEMA_PATH = property(lambda self: self.STRATEGY_ROOT / "live_schema.sql")
+
     def profile(self, market: str) -> dict:
         return self.MARKET_PROFILES.get(market, self.MARKET_PROFILES[self.DEFAULT_MARKET])
+
+    def kiwoom_base_url(self) -> str:
+        return self.KIWOOM_REAL_BASE_URL if self.KIWOOM_ENV == "real" else self.KIWOOM_MOCK_BASE_URL
+
+    def broker_configured(self) -> bool:
+        """키움 실주문 가능 여부 (모드=kiwoom + 키/계좌 존재)."""
+        return (self.EXECUTION_MODE == "kiwoom"
+                and bool(self.KIWOOM_APP_KEY and self.KIWOOM_APP_SECRET and self.KIWOOM_ACCOUNT_NO))
+
+    def mask_account(self) -> str:
+        a = self.KIWOOM_ACCOUNT_NO
+        return ("*" * max(0, len(a) - 4) + a[-4:]) if a else ""
+
+    def live_config(self) -> dict:
+        """UI용 비밀 제외 라이브 설정 뷰."""
+        return {
+            "execution_mode": self.EXECUTION_MODE,
+            "kiwoom_env": self.KIWOOM_ENV,
+            "broker_configured": self.broker_configured(),
+            "account_masked": self.mask_account(),
+            "max_orders_per_cycle": self.MAX_ORDERS_PER_CYCLE,
+            "max_notional_per_order": self.MAX_NOTIONAL_PER_ORDER,
+        }
 
 
 settings = Settings()

@@ -17,5 +17,10 @@ Thumbs.db
 .vscode/
 .idea/
 
-# PowerShell test scripts
+# PowerShell test scripts (운영 래퍼는 -f 로 강제 추가)
 *.ps1
+
+# Runtime logs / temp (서버 stdout·stderr, 스케줄 로그)
+logs/
+backend/_be.*
+frontend/_fe.*

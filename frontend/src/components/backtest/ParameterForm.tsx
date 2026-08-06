@@ -41,7 +41,9 @@ export function ParameterForm({ onSubmit, loading }: Props) {
         if (!m.lookbacks_available.includes(lookback) && m.lookbacks_available.length) {
           setLookback(m.lookbacks_available.includes(504) ? 504 : m.lookbacks_available[0]);
         }
-        if (m.data_start && start < m.data_start) setStart(m.data_start.slice(0, 10));
+        // 시장별 전 범위로 초기화 (data_start ~ data_end)
+        if (m.data_start) setStart(m.data_start.slice(0, 10));
+        if (m.data_end) setEnd(m.data_end.slice(0, 10));
       })
       .catch(() => setMeta(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,6 +95,21 @@ export function ParameterForm({ onSubmit, loading }: Props) {
             className={inputStyle} style={{ borderColor: "var(--border)" }} />
         </div>
       </div>
+
+      {meta?.data_start && (
+        <div className="flex items-center gap-2 text-xs flex-wrap" style={{ color: "var(--text-secondary)" }}>
+          <button type="button"
+            onClick={() => { setStart(meta.data_start!.slice(0, 10)); if (meta.data_end) setEnd(meta.data_end.slice(0, 10)); }}
+            className="px-2 py-0.5 rounded border hover:bg-white/5"
+            style={{ borderColor: "var(--border)" }}>
+            전체 기간
+          </button>
+          <span>가능: {meta.data_start.slice(0, 10)} ~ {meta.data_end?.slice(0, 10)}</span>
+          {start !== meta.data_start.slice(0, 10) && (
+            <span style={{ color: "#f59e0b" }}>⚠ 부분 기간 (전체 아님)</span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Num label="ATH ratio" value={athRatio} onChange={setAthRatio} step={0.01} />

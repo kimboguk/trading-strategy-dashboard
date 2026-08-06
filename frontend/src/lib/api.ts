@@ -124,6 +124,52 @@ export async function getForwardEquity(market: Market): Promise<EquityPoint[]> {
   return fetchJSON(`/api/signals/equity?market=${market}`);
 }
 
+// ── Live ──
+import type { LiveConfig, LiveDashboard, OrderLogEntry } from "./types";
+
+export async function getLiveConfig(): Promise<LiveConfig> {
+  return fetchJSON("/api/live/config");
+}
+
+export async function getLiveDashboard(market: Market): Promise<LiveDashboard> {
+  return fetchJSON(`/api/live/dashboard?market=${market}`);
+}
+
+export async function setAutoTrade(on: boolean, confirm?: string): Promise<LiveConfig> {
+  return fetchJSON("/api/live/auto-trade", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ on, confirm: confirm ?? null }),
+  });
+}
+
+export async function getOrderLog(as_of?: string): Promise<OrderLogEntry[]> {
+  const q = as_of ? `?as_of=${as_of}` : "";
+  return fetchJSON(`/api/live/orders/log${q}`);
+}
+
+/** 데이터 동기화 + 오늘 사이클 실행 (비동기 task → 폴링). 완료 시 cycle result 반환. */
+export async function syncAndRun(
+  market: Market,
+  as_of?: string,
+  onProgress?: (p: number, msg?: string) => void,
+  signal?: AbortSignal
+): Promise<any> {
+  const { task_id } = await fetchJSON<{ task_id: string }>("/api/live/sync-and-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ market, as_of: as_of ?? null }),
+  });
+  while (true) {
+    if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+    await new Promise((r) => setTimeout(r, 2000));
+    const s = await fetchJSON<any>(`/api/live/task/${task_id}`);
+    onProgress?.(s.progress, s.message);
+    if (s.status === "complete") return s.result;
+    if (s.status === "error") throw new Error(s.error || "sync/cycle failed");
+  }
+}
+
 // ── Poll helper ──
 
 export async function pollUntilComplete(

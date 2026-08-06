@@ -10,6 +10,7 @@ export function formatLabel(p: BacktestRequest): string {
     p.ranking,
     `lb${p.lookback}`,
   ];
+  if (p.price_mode) parts.push(p.price_mode);
   if (p.start || p.end) parts.push(`${p.start ?? ""}_${p.end ?? ""}`);
   return parts.join("|");
 }
