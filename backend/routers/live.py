@@ -78,6 +78,8 @@ def dashboard(market: str = "KRW"):
         "equity_series": equity,
         "sizing": sizing,                              # 수동매매 슬롯 배분 요약
         "picks_are_today": bool(today and state.get("latest_signal_date") == today),
+        "entry_due": (signals_service.next_trading_day(state["latest_signal_date"])
+                      if state.get("latest_signal_date") else None),  # 진입 예정일(다음 거래일)
         "entries_today": signals_service.get_entries_on(today) if today else [],  # 오늘 진입 체결(어제 신호)
         "signal_history": signals_service.get_signal_history(60),  # 신호 이력(주문 무관)
         "live": _live_state(),

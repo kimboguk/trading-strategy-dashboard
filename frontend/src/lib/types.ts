@@ -329,6 +329,7 @@ export interface LiveDashboard {
   equity_series: EquityPoint[];
   sizing: Sizing;
   picks_are_today: boolean;
+  entry_due: { date: string; exact: boolean } | null;
   entries_today: EntryToday[];
   signal_history: SignalHistoryEntry[];
   live: LiveConfig;

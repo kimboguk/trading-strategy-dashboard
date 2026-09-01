@@ -245,8 +245,15 @@ export default function LiveDashboardPage() {
               </table>
             </div>
           )}
+          {d?.entry_due && (
+            <p className="text-xs mt-2 rounded px-2 py-1" style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)" }}>
+              진입 예정일: <b>{d.entry_due.date}</b> <span style={{ color: "var(--text-secondary)" }}>
+                (신호일 다음 <b>거래일</b> — 주말·휴장은 건너뜀{d.entry_due.exact ? "" : ", 추정"})
+              </span>
+            </p>
+          )}
           <p className="text-[10px] mt-2" style={{ color: "var(--text-secondary)" }}>
-            신호일 종가에 발생 → <b>다음 거래일 시가 진입</b> 예정. 제안수량/금액은 슬롯 기준 참고값.
+            신호일 종가에 발생 → 진입 예정일 시가 매수. 제안수량/금액은 슬롯 기준 참고값.
           </p>
         </>)}
       </Panel>

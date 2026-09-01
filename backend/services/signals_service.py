@@ -6,7 +6,7 @@ daily_signals.py 의 사이클 함수를 그대로 재사용 — 콘솔 출력 �
 멀티마켓 분리(market 컬럼)로 확장 예정.
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional
 
 from bridge.ath_bridge import get_daily_signals
@@ -229,6 +229,23 @@ def current_forward_equity() -> float:
     if r and r[0] is not None:
         return float(r[0])
     return float(get_sizing_config()["forward_initial_capital"])
+
+
+def next_trading_day(after: str) -> dict:
+    """signal_date 다음 거래일. market_data에 이후 거래일이 있으면 정확,
+    없으면(아직 도래 전) 다음 평일 추정. → '다음날'이 아닌 실제 거래일 표시용."""
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute("SELECT min(trade_date)::text FROM market_data WHERE trade_date > %s", (after,))
+    r = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    if r:
+        return {"date": r, "exact": True}
+    d = datetime.strptime(after, "%Y-%m-%d").date() + timedelta(days=1)
+    while d.weekday() >= 5:   # 토/일 건너뜀 (공휴일은 미반영 → 추정)
+        d += timedelta(days=1)
+    return {"date": d.isoformat(), "exact": False}
 
 
 def get_open_positions_for_exit() -> list:
