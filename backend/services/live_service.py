@@ -153,13 +153,16 @@ def submit_open_entries(market: str = "KRW") -> dict:
 
 
 def monitor_and_exit(market: str = "KRW") -> dict:
-    """장중 청산 감시 — 보유종목 현재가가 TP/SL 도달 시 시장가 매도.
+    """장중 청산 감시 — **실제 키움 보유** 기준으로 TP/SL 도달 시 시장가 매도.
 
-    키움엔 독립 스톱주문 함수가 없어 프로그램 로직으로 구현(제미나이/공식 확인).
-    장중 주기(5분 등) 호출. auto_trade ON + 장중 필수. 초당 유량 준수(throttle).
-    - 멱등: 같은 날 이미 auto SELL 있으면 skip (order_log)
-    - 예외는 전파하지 않음
+    핵심: paper 장부가 아니라 get_account()의 **실보유 + 실제 평단가**로 판단.
+      → paper 진입/청산 타이밍과 무관하게, 진입 당일 장중부터 실포지션을 감시.
+      → 부분체결은 5분 주기 재실행으로 잔량 소진(실보유가 0이 되면 자동 종료).
+    키움엔 독립 스톱주문이 없어 프로그램 로직으로 구현. auto_trade ON + 장중 필수.
+    order_log 는 intent='auto_exit'(멱등 유니크 대상 아님) — 부분체결 재시도 허용.
+    예외는 전파하지 않음.
     """
+    from services.execution import norm_code
     summary = {"gated": True, "reason": None, "checked": 0,
                "sold": 0, "failed": 0, "skipped": 0, "orders": []}
     try:
@@ -176,30 +179,28 @@ def monitor_and_exit(market: str = "KRW") -> dict:
             summary["reason"] = "장 시간 아님"; return summary
 
         summary["gated"] = False
-        opens = signals_service.get_open_positions_for_exit()
-        if not opens:
-            summary["reason"] = "보유 포지션 없음"; return summary
+        adapter = get_kiwoom()
+        holdings = (adapter.get_account() or {}).get("holdings") or []
+        if not holdings:
+            summary["reason"] = "실보유 종목 없음"; return summary
 
+        szcfg = signals_service.get_sizing_config()
+        tp_pct = szcfg["tp_pct"]
+        sl_pct = szcfg["sl_pct"]
         today = datetime.date.today().isoformat()
         env = settings.KIWOOM_ENV
-        adapter = get_kiwoom()
         n_calls = 0
 
-        for pos in opens:
-            ticker = pos["ticker"]
-            shares = int(pos.get("shares") or 0)
-            tp = pos.get("tp_price")
-            sl = pos.get("sl_price")
-            # 이미 오늘 청산 주문했으면 skip (get_price 호출 절약)
-            if db.auto_order_exists(today, "SELL", ticker):
-                summary["skipped"] += 1
+        for h in holdings:
+            ticker = norm_code(h.get("ticker"))
+            qty = int(h.get("qty") or 0)
+            avg = h.get("avg_price")
+            if qty <= 0 or not avg or avg <= 0:
                 continue
-            if shares <= 0:
-                summary["skipped"] += 1
-                continue
-
             summary["checked"] += 1
-            # 현재가 조회 (유량 준수)
+            tp_price = avg * (1 + tp_pct)   # 실제 평단가 기준 TP/SL
+            sl_price = avg * (1 - sl_pct)
+
             if n_calls > 0:
                 time.sleep(_ORDER_THROTTLE_SEC)
             try:
@@ -211,41 +212,34 @@ def monitor_and_exit(market: str = "KRW") -> dict:
                 summary["skipped"] += 1
                 continue
 
-            reason = None
-            if tp and price >= tp:
-                reason = "TP"
-            elif sl and price <= sl:
-                reason = "SL"
+            reason = "TP" if price >= tp_price else ("SL" if price <= sl_price else None)
             if not reason:
-                continue   # 아직 미도달
+                continue   # 미도달
 
-            base = {"cycle_as_of": today, "market": market, "side": "SELL", "ticker": ticker,
-                    "product_id": pos.get("product_id"), "qty": shares, "price": None,
-                    "order_type": "market", "broker_env": env, "adapter": "kiwoom"}
-            oid = db.reserve_order_log({**base, "intent": "auto", "status": "submitting"})
-            if oid is None:
-                summary["skipped"] += 1
-                continue
+            # 실보유 기준 시장가 매도 (부분체결 시 다음 주기 재시도 → 실보유 0이면 종료)
+            time.sleep(_ORDER_THROTTLE_SEC)
             try:
-                time.sleep(_ORDER_THROTTLE_SEC)
-                resp = adapter.submit_exit({"ticker": ticker, "qty": shares, "price": None})
+                resp = adapter.submit_exit({"ticker": ticker, "qty": qty, "price": None})
                 st_val = resp.get("status") or "submitted"
-                db.update_order_log(oid, {
-                    "status": st_val,
-                    "broker_order_id": resp.get("broker_order_id"),
-                    "raw_request": resp.get("raw_request"),
-                    "raw_response": resp.get("raw_response"),
-                    "error": f"{reason} @{price:.0f}" if not resp.get("error") else resp.get("error"),
-                    "price": price,
+                db.insert_order_log({
+                    "cycle_as_of": today, "market": market, "side": "SELL", "ticker": ticker,
+                    "product_id": None, "qty": qty, "price": price, "order_type": "market",
+                    "broker_env": env, "adapter": "kiwoom", "intent": "auto_exit",
+                    "status": st_val, "broker_order_id": resp.get("broker_order_id"),
+                    "raw_request": resp.get("raw_request"), "raw_response": resp.get("raw_response"),
+                    "error": f"{reason} @{price:.0f} (avg {avg:.0f})" if not resp.get("error") else resp.get("error"),
                 })
                 if st_val in ("failed", "rejected", "error"):
                     summary["failed"] += 1
                 else:
                     summary["sold"] += 1
                 summary["orders"].append({"ticker": ticker, "reason": reason,
-                                          "price": price, "qty": shares, "status": st_val})
+                                          "price": price, "qty": qty, "status": st_val})
             except Exception as e:
-                db.update_order_log(oid, {"status": "error", "error": str(e)})
+                db.insert_order_log({
+                    "cycle_as_of": today, "market": market, "side": "SELL", "ticker": ticker,
+                    "qty": qty, "order_type": "market", "broker_env": env, "adapter": "kiwoom",
+                    "intent": "auto_exit", "status": "error", "error": str(e)})
                 summary["failed"] += 1
         return summary
     except Exception as e:
