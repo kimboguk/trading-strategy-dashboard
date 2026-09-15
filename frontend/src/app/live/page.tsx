@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useEnvStore } from "@/lib/store";
 import { getLiveConfig, getLiveDashboard, setAutoTrade, syncAndRun } from "@/lib/api";
-import type { LiveDashboard, LiveConfig } from "@/lib/types";
+import type { LiveDashboard, LiveConfig, PipelineHealth } from "@/lib/types";
 
 const EquityCurve = dynamic(() => import("@/components/charts/EquityCurve").then((m) => m.EquityCurve), { ssr: false });
 
@@ -80,6 +80,9 @@ export default function LiveDashboardPage() {
           ⚠ 데이터 신선도: rt_* ({d.freshness.rt_max}) 가 market_data ({d.freshness.market_data_max}) 보다 과거 — Sync 필요
         </p>
       )}
+
+      {/* 데이터 파이프라인 상태 모니터 */}
+      {d?.pipeline_health && <PipelineHealthPanel h={d.pipeline_health} />}
 
       {/* 자동매매 스위치 */}
       <div className="rounded-lg p-4 flex items-center justify-between" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
@@ -349,4 +352,67 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 function Empty({ text }: { text: string }) {
   return text ? <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{text}</p> : null;
+}
+
+const SRC_LABEL: Record<string, string> = {
+  market_data: "가격 수집 (market_data)",
+  rt_expected_returns: "기대수익 처리 (rt_expected_returns)",
+  rt_asset_metrics: "자산지표 처리 (rt_asset_metrics)",
+  forward_capital: "Forward 사이클 (forward_capital)",
+};
+
+function PipelineHealthPanel({ h }: { h: PipelineHealth }) {
+  const ok = h.status === "OK";
+  const accent = ok ? "var(--green)" : "#f59e0b";
+  return (
+    <div className="rounded-lg p-4" style={{ background: "var(--bg-secondary)", border: `1px solid ${ok ? "var(--border)" : "rgba(245,158,11,0.5)"}` }}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: accent }} />
+        <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+          데이터 수집·처리 상태
+        </h3>
+        <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: ok ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.15)", color: accent }}>
+          {ok ? "정상 (OK)" : "점검 필요 (WARN)"}
+        </span>
+        <span className="text-xs ml-auto" style={{ color: "var(--text-secondary)" }}>
+          최근 파이프라인 실행: {h.last_pipeline_run ?? "기록 없음"}
+        </span>
+      </div>
+
+      {h.warnings.length > 0 && (
+        <ul className="text-xs mb-3 space-y-1">
+          {h.warnings.map((w, i) => (
+            <li key={i} className="rounded px-2 py-1" style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b" }}>⚠ {w}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {h.sources.map((s) => (
+          <div key={s.name} className="rounded-lg px-3 py-2" style={{ background: "var(--bg-tertiary)", border: `1px solid ${s.stale ? "rgba(245,158,11,0.5)" : "var(--border)"}` }}>
+            <p className="text-[11px] leading-tight" style={{ color: "var(--text-secondary)" }}>{SRC_LABEL[s.name] ?? s.name}</p>
+            <p className="text-sm font-bold font-mono mt-0.5" style={{ color: s.stale ? "#f59e0b" : "var(--text-primary)" }}>
+              {s.max_date ?? "-"}
+            </p>
+            <p className="text-[10px]" style={{ color: s.stale ? "#f59e0b" : "var(--text-secondary)" }}>
+              {s.days_behind == null ? "" : s.days_behind === 0 ? "오늘 최신" : `${s.days_behind}일 전`}
+              {s.stale ? " · 지연" : ""}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] mr-1" style={{ color: "var(--text-secondary)" }}>최근 거래일 수집:</span>
+        {h.recent_trading_days.map((day) => (
+          <span key={day} className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(34,197,94,0.1)", color: "var(--green)" }}>
+            {day.slice(5)}
+          </span>
+        ))}
+      </div>
+      <p className="text-[10px] mt-2" style={{ color: "var(--text-secondary)" }}>
+        각 소스의 최신 수집일과 지연 여부. 최근 신호일: {h.last_signal_date ?? "-"} (신호 미발생 기간은 정상 — 선별적 진입 전략).
+      </p>
+    </div>
+  );
 }

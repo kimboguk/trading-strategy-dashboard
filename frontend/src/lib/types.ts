@@ -315,6 +315,23 @@ export interface SignalHistoryEntry {
   pnl_pct: number | null;
 }
 
+export interface PipelineSource {
+  name: string;
+  max_date: string | null;
+  days_behind: number | null;
+  stale: boolean;
+}
+
+export interface PipelineHealth {
+  as_of: string;
+  status: "OK" | "WARN";
+  warnings: string[];
+  sources: PipelineSource[];
+  last_signal_date: string | null;
+  recent_trading_days: string[];
+  last_pipeline_run: string | null;
+}
+
 export interface LiveDashboard {
   market: Market;
   as_of: string | null;
@@ -336,6 +353,7 @@ export interface LiveDashboard {
   freshness: Freshness;
   broker: BrokerAccount | null;
   auto_orders: AutoOrderSummary;
+  pipeline_health: PipelineHealth;
 }
 
 export interface CapitalPoint {

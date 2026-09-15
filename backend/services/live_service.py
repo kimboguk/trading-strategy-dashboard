@@ -39,6 +39,76 @@ def _market_open_now() -> bool:
     return _MARKET_OPEN <= now.time() <= _MARKET_CLOSE
 
 
+def get_pipeline_health() -> dict:
+    """데이터 수집·처리 파이프라인 상태 — 신선도/갭/최근 실행 점검 (대시보드 모니터용)."""
+    import glob
+    import os
+
+    conn = db._conn()
+    cur = conn.cursor()
+    today = datetime.date.today()
+
+    def _maxdate(table, col):
+        cur.execute(f"SELECT max({col})::text FROM {table}")
+        return cur.fetchone()[0]
+
+    specs = [
+        ("market_data", "market_data", "trade_date", 4),          # 거래일만 → 주말 버퍼 4일
+        ("rt_expected_returns", "rt_expected_returns", "snapshot_date", 2),  # 매일 → 2일
+        ("rt_asset_metrics", "rt_asset_metrics", "snapshot_date", 2),
+        ("forward_capital", "forward_capital", "snapshot_date", 4),
+    ]
+    sources = []
+    for name, table, col, thresh in specs:
+        mx = _maxdate(table, col)
+        behind = (today - datetime.date.fromisoformat(mx)).days if mx else None
+        sources.append({"name": name, "max_date": mx, "days_behind": behind,
+                        "stale": (behind is not None and behind > thresh)})
+
+    last_signal = _maxdate("forward_signals", "signal_date")
+
+    # 최근 거래일 (갭 시각 확인용)
+    cur.execute("""SELECT trade_date::text FROM
+                   (SELECT DISTINCT trade_date FROM market_data ORDER BY trade_date DESC LIMIT 12) t
+                   ORDER BY trade_date""")
+    recent_days = [r[0] for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    md = next(s for s in sources if s["name"] == "market_data")
+    fc = next(s for s in sources if s["name"] == "forward_capital")
+    rt = next(s for s in sources if s["name"] == "rt_expected_returns")
+
+    warnings = []
+    if rt["stale"]:
+        warnings.append(f"rt_* {rt['days_behind']}일 지연 — 일일 수집 중단 의심")
+    if md["stale"]:
+        warnings.append(f"market_data {md['days_behind']}일 지연 — 가격 수집 확인 필요")
+    if md["max_date"] and fc["max_date"] and fc["max_date"] < md["max_date"]:
+        warnings.append("forward 사이클이 최신 데이터 미반영(catch-up 필요)")
+
+    # 최근 파이프라인 로그 (실행 흔적)
+    last_run = None
+    try:
+        logs = sorted(glob.glob(str(settings.STRATEGY_ROOT / "logs" / "daily_*.log")))
+        if logs:
+            fname = os.path.basename(logs[-1])          # daily_YYYYMMDD_HHMMSS.log
+            ts = fname.replace("daily_", "").replace(".log", "")
+            last_run = datetime.datetime.strptime(ts, "%Y%m%d_%H%M%S").isoformat(sep=" ")
+    except Exception:
+        pass
+
+    return {
+        "as_of": today.isoformat(),
+        "status": "WARN" if warnings else "OK",
+        "warnings": warnings,
+        "sources": sources,
+        "last_signal_date": last_signal,
+        "recent_trading_days": recent_days,
+        "last_pipeline_run": last_run,
+    }
+
+
 def submit_open_entries(market: str = "KRW") -> dict:
     """개장(09:00) 자동 진입 — arm된 pending 진입을 **시장가 매수** 제출.
 

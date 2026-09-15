@@ -86,8 +86,15 @@ def dashboard(market: str = "KRW"):
         "freshness": live_service.freshness(market),
         "broker": _broker_account(),                   # 키움 구성 시 계좌, 아니면 None
         "auto_orders": db.order_log_summary(today),    # 당일 자동주문 상태 집계
+        "pipeline_health": live_service.get_pipeline_health(),  # 데이터 수집·처리 상태
     }
     return JSONResponse(content=_sanitize_floats(payload))
+
+
+@router.get("/pipeline-health")
+def pipeline_health():
+    """데이터 파이프라인 상태 — 소스별 신선도·갭·최근 실행 (모니터 패널용)."""
+    return JSONResponse(content=_sanitize_floats(live_service.get_pipeline_health()))
 
 
 @router.get("/broker/ping")
