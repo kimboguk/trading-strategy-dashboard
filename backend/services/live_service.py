@@ -67,9 +67,9 @@ def get_pipeline_health() -> dict:
 
     last_signal = _maxdate("forward_signals", "signal_date")
 
-    # 최근 거래일 (갭 시각 확인용)
+    # 최근 10 거래일 (갭 시각 확인용)
     cur.execute("""SELECT trade_date::text FROM
-                   (SELECT DISTINCT trade_date FROM market_data ORDER BY trade_date DESC LIMIT 12) t
+                   (SELECT DISTINCT trade_date FROM market_data ORDER BY trade_date DESC LIMIT 10) t
                    ORDER BY trade_date""")
     recent_days = [r[0] for r in cur.fetchall()]
     cur.close()
